@@ -1,18 +1,49 @@
 {
   "name": "goooooook",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "main": "server.js",
+  "main": "electron/main.js",
   "scripts": {
     "setup": "node create-excel.js",
     "start": "node server.js",
-    "hash": "node hash.js"
+    "hash": "node hash.js",
+    "electron": "electron .",
+    "dist": "electron-builder",
+    "android:add": "cap add android",
+    "android:open": "cap open android",
+    "android:build": "cap sync android && cd android && ./gradlew assembleRelease"
+  },
+  "build": {
+    "appId": "hk.kylechan.goooooook",
+    "productName": "goooooook",
+    "files": [
+      "electron/**/*",
+      "public/**/*",
+      "server.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cookie-session": "^2.1.0",
     "express": "^4.19.2",
     "socket.io": "^4.7.5",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
   }
 }

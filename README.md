@@ -20,35 +20,60 @@ npm start
 - `data/goooooook.xlsx`
 - `data/lyrics/`
 
-## Excel 格式
-
-### Rooms
-
-| room_code | password_hash | room_name | active |
-|---|---|---|---|
-| 自動產生 | bcrypt hash | 屋企 KTV | TRUE |
-
-### Songs
-
-| song_id | title | artist | youtube_url | category | language | lrc_file |
-|---|---|---|---|---|---|---|
-
-`lrc_file` 填相對檔名，例如 `gurenge.lrc`，檔案放在 `data/lyrics/`。
-
-### QueueLog
-
-| timestamp | room_code | singer | title | youtube_url |
-|---|---|---|---|---|
-
 ## 使用
 
 - 手機：`http://<host 機 LAN IP>:3000`
-- 電視：`http://localhost:3000/tv.html?room=你的房間碼`
+- 電視：`http://localhost:3000/tv.html?room=你的房間碼&token=你的Token`
 - 建立新房間：手機頁按「建立新房間」，系統會自動產生 7 位房間碼。
 
-## LRC 字幕
+## 桌面版
 
-將 `.lrc` 放入 `data/lyrics/`，並喺 Songs 的 `lrc_file` 填檔名。電視播放時會根據 YouTube 時間同步顯示。
+```bash
+npm run electron
+```
+
+會開一個 Electron 視窗，連去 `http://localhost:3000`。
+
+## 打包下載檔
+
+```bash
+npm run dist
+```
+
+會產生：
+
+- Windows：`dist/goooooook Setup.exe`
+- macOS：`dist/goooooook.dmg`
+- Linux：`dist/goooooook.AppImage`
+
+將產物上傳到 GitHub Releases，下載頁就會自動指向最新 Release。
+
+## Android APK
+
+```bash
+npm run android:add
+npm run android:open
+```
+
+喺 Android Studio build APK，或：
+
+```bash
+npm run android:build
+```
+
+APK 會喺：
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
+
+## 下載頁
+
+`download/index.html` 已預設指向 GitHub Releases 最新版本：
+
+- Windows `.exe`
+- macOS `.dmg`
+- Android `.apk`
 
 ## 安全與法律
 

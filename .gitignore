@@ -3,5 +3,8 @@ node_modules/
 data/*.xlsx
 data/*.xls
 data/*.csv
+dist/
+android/
+ios/
 *.log
 .DS_Store
