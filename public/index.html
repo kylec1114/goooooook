@@ -1,46 +1,89 @@
 <!doctype html>
 <html lang="zh-HK">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#120a1c">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 <title>goooooook</title>
 <style>
-*{box-sizing:border-box}body{margin:0;padding:20px;background:#0f0f13;color:#eee;font:16px system-ui;max-width:760px;margin:auto}section{background:#191922;padding:18px;border-radius:14px;margin:16px 0}input,button,a.link{font:inherit;padding:12px;border-radius:8px;margin:6px 0;width:100%}input{background:#fff;color:#111;border:1px solid #777}button,a.link{background:#e91e63;color:white;border:0;cursor:pointer}button:disabled{opacity:.5}a.link{display:block;text-align:center;overflow-wrap:anywhere}small{display:block;color:#aaa}.item{padding:12px;margin:8px 0;background:#252532;border-radius:8px}#status{white-space:pre-wrap;overflow-wrap:anywhere}textarea{width:100%;min-height:100px} [hidden]{display:none!important}
+:root{--bg:#08060f;--surface:#141020;--surface2:#1e1730;--line:#312547;--text:#f7f4ff;--muted:#a99fc4;--pink:#ff2e7e;--purple:#8b5cf6;--green:#31d0aa;--red:#ff5c7a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;background:radial-gradient(900px 500px at 80% -10%,#31123f,transparent),radial-gradient(700px 500px at -10% 20%,#1b1240,transparent),var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;min-height:100vh}main{max-width:560px;margin:auto;padding:20px 18px 108px}header{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:rgba(8,6,15,.82);backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.07)}.brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:21px;letter-spacing:-.4px}.logo{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,var(--pink),var(--purple));display:grid;place-items:center;font-size:19px}.toplink{color:var(--muted);text-decoration:none;font-size:14px;padding:8px 12px;border:1px solid var(--line);border-radius:999px}.hero{margin:24px 0 18px}.hero h1{font-size:34px;line-height:1.1;margin:0 0 10px;letter-spacing:-1px}.hero p{color:var(--muted);margin:0}.card{background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02)),var(--surface);border:1px solid var(--line);border-radius:24px;padding:20px;margin:16px 0;box-shadow:0 20px 50px rgba(0,0,0,.35)}.card h2{margin:0 0 14px;font-size:20px}.field{margin:14px 0}.field label{display:block;color:var(--muted);font-size:13px;margin-bottom:7px}.field input,.field textarea{width:100%;padding:16px;border-radius:16px;border:1px solid var(--line);background:#0d0a18;color:#fff;font:inherit}.field input:focus,.field textarea:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(255,46,126,.18)}.button{width:100%;border:0;border-radius:16px;padding:17px;background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font:inherit;font-weight:800;font-size:17px;cursor:pointer;margin-top:16px}.button:disabled{opacity:.45}.secondary{background:#241b38;border:1px solid var(--line)}.link{display:block;text-align:center;text-decoration:none;color:#fff}.small{color:var(--muted);font-size:13px;line-height:1.5}.status{margin:0 0 16px;padding:13px 15px;border-radius:14px;background:#100c1c;border:1px solid var(--line);color:var(--muted);min-height:20px;white-space:pre-wrap}.status.ok{color:var(--green);border-color:rgba(49,208,170,.35)}.status.error{color:var(--red);border-color:rgba(255,92,122,.35)}.row{display:flex;gap:10px;align-items:center}.row .button{margin-top:0}.song{display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--line);border-radius:18px;padding:14px;margin:10px 0}.song .art{width:46px;height:46px;flex:none;border-radius:12px;background:linear-gradient(135deg,var(--pink),var(--purple));display:grid;place-items:center;font-weight:900}.song .info{min-width:0;flex:1}.song strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.song span{color:var(--muted);font-size:13px}.song button{width:auto;margin:0;padding:11px 16px;font-size:14px}.empty{padding:26px;text-align:center;color:var(--muted);background:#100c1c;border:1px dashed var(--line);border-radius:18px}.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(10,7,18,.94);backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.08);padding:8px 8px calc(10px + env(safe-area-inset-bottom))}.tab{border:0;background:none;color:var(--muted);font:inherit;font-size:12px;padding:8px 4px;border-radius:14px;display:grid;justify-items:center;gap:4px;cursor:pointer}.tab .icon{font-size:21px}.tab.active{color:#fff;background:rgba(255,46,126,.14)}.tab.active .icon{filter:drop-shadow(0 0 8px rgba(255,46,126,.65))}.page{display:none}.page.active{display:block}.badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--pink);color:#fff;font-size:12px;font-weight:800}.tvurl{width:100%;min-height:88px;margin-top:10px;padding:14px;border-radius:14px;border:1px solid var(--line);background:#0d0a18;color:#c9bfff;font:13px ui-monospace,monospace;resize:none}[hidden]{display:none!important}
 </style>
 </head>
 <body>
-<h1>goooooook</h1><p>私人家庭點歌 · 歌庫保存在 host</p>
-<p id="status" role="status" aria-live="polite"></p>
-<section id="access">
-<h2>登入房間</h2><label>房間碼<input id="room" maxlength="7" autocomplete="off"></label>
-<label>密碼<input id="password" type="password" autocomplete="current-password"></label>
-<button id="login">進入房間</button>
-<details><summary>建立房間</summary><label>房間名<input id="name"></label><label>新密碼<input id="newPassword" type="password" autocomplete="new-password"></label><button id="create">建立新房間</button></details>
+<header><div class="brand"><div class="logo">♪</div>goooooook</div><a class="toplink" href="/downloads.html">下載</a></header>
+<main>
+<div class="hero"><h1>屋企 KTV<br>一齊唱。</h1><p>私人房間 · YouTube 點歌 · 電視同步</p></div>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+<section id="access" class="card">
+<h2>進入房間</h2>
+<div class="field"><label>房間碼</label><input id="room" maxlength="7" autocomplete="off" inputmode="text" placeholder="7 位房間碼"></div>
+<div class="field"><label>密碼</label><input id="password" type="password" autocomplete="current-password" placeholder="房間密碼"></div>
+<button id="login" class="button">進入房間</button>
+<details style="margin-top:16px"><summary style="color:var(--muted);cursor:pointer">建立新房間</summary>
+<div class="field"><label>房間名</label><input id="name" placeholder="例如：屋企 KTV"></div>
+<div class="field"><label>新密碼</label><input id="newPassword" type="password" autocomplete="new-password"></div>
+<button id="create" class="button secondary">建立房間</button>
+</details>
 </section>
-<main id="controls" hidden>
-<section><h2>Excel 歌庫搜尋</h2><label>歌名／歌手／分類<input id="query"></label><button id="reload">重新載入歌庫</button><p id="libraryStatus"></p><div id="results"></div></section>
-<section><h2>YouTube 搜尋捷徑</h2><label>歌名或歌手<input id="youtubeQuery"></label><button id="search">喺 YouTube 搜尋</button><small>會開 YouTube；揀片後複製網址，再貼入下面。唔需要 API key。</small></section>
-<section><h2>貼網址點歌</h2><label>YouTube 網址<input id="url" type="url"></label><label>歌名（選填）<input id="title"></label><label>邊個唱？<input id="singer" value="Guest"></label><button id="add">加入隊列</button></section>
-<section><h2>隊列</h2><div id="queue"></div></section>
-<section><h2>電視連結</h2><a id="tv" class="link" target="_blank" rel="noopener noreferrer">開電視頁</a><textarea id="tvUrl" readonly aria-label="電視網址"></textarea><small>呢條連結包含房間憑證，請勿公開。localhost 連結只適用於本機；其他設備請用 host 的 LAN IP 登入後取得連結。</small></section>
+<div id="controls" hidden>
+<section id="page-request" class="page active">
+<div class="card"><h2>貼 YouTube 連結</h2>
+<div class="field"><label>YouTube 網址</label><input id="url" type="url" placeholder="https://youtu.be/..."></div>
+<div class="field"><label>歌名（選填）</label><input id="title" placeholder="自動使用 YouTube 歌曲"></div>
+<div class="field"><label>邊個唱？</label><input id="singer" value="Guest"></div>
+<button id="add" class="button">加入隊列</button>
+</div>
+<div class="card"><h2>搵歌</h2>
+<div class="field"><label>歌名或歌手</label><input id="youtubeQuery" placeholder="例如：陳奕迅 K 歌"></div>
+<button id="search" class="button secondary">喺 YouTube 搜尋</button>
+</div>
+</section>
+<section id="page-library" class="page">
+<div class="card"><h2>Excel 歌庫</h2>
+<div class="field"><label>搜尋</label><input id="query" placeholder="歌名／歌手／分類"></div>
+<button id="reload" class="button secondary">重新載入</button>
+<p class="small" id="libraryStatus"></p><div id="results"></div>
+</div>
+</section>
+<section id="page-queue" class="page">
+<div class="card"><h2>播放隊列 <span class="badge" id="queueCount">0</span></h2><div id="queue"></div></div>
+</section>
+<section id="page-tv" class="page">
+<div class="card"><h2>電視連線</h2>
+<p class="small">喺電視瀏覽器開啟下面連結。連結包含房間憑證，請勿公開。</p>
+<a id="tv" class="button link" target="_blank" rel="noopener noreferrer">開啟電視頁</a>
+<textarea id="tvUrl" readonly aria-label="電視網址"></textarea>
+</div>
+</section>
+</div>
 </main>
+<nav class="tabs" id="tabs" hidden>
+<button class="tab active" data-page="page-request"><span class="icon">🎤</span>點歌</button>
+<button class="tab" data-page="page-library"><span class="icon">📚</span>歌庫</button>
+<button class="tab" data-page="page-queue"><span class="icon">📋</span>隊列</button>
+<button class="tab" data-page="page-tv"><span class="icon">📺</span>電視</button>
+</nav>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 'use strict';
-const el=id=>document.getElementById(id);
-let songs=[],socket=null,libraryReady=false;
-function status(text){el('status').textContent=text;}
-async function api(url,body){const response=await fetch(url,{method:body===undefined?'GET':'POST',credentials:'same-origin',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});let data;try{data=await response.json();}catch{throw new Error('Server 回應唔正確，請檢查 Terminal。');}if(!response.ok)throw new Error(data.error||'請求失敗');return data;}
-function action(id,fn){el(id).addEventListener('click',async()=>{el(id).disabled=true;try{await fn();}catch(error){status(error.message||'操作失敗');}finally{el(id).disabled=false;}});}
-function renderQueue(queue){const box=el('queue');box.replaceChildren();if(!queue.length){box.textContent='暫時未有歌曲';return;}queue.forEach((song,i)=>{const row=document.createElement('div');row.className='item';row.textContent=(i+1)+'. '+String(song.title||'YouTube 歌曲')+' — '+String(song.singer||'Guest');box.append(row);});}
-async function addSong(url,title){const data=await api('/api/queue',{youtubeUrl:url,title:title||'',singer:el('singer').value.trim()||'Guest'});renderQueue(data.queue||[]);status('已加入隊列');}
-function renderLibrary(){const box=el('results');box.replaceChildren();if(!libraryReady)return;const q=el('query').value.trim().toLowerCase();const matches=songs.filter(s=>[s.title,s.artist,s.category,s.language].map(v=>String(v||'')).join(' ').toLowerCase().includes(q));el('libraryStatus').textContent='符合 '+matches.length+' 首，顯示最多 100 首';matches.slice(0,100).forEach(song=>{const card=document.createElement('div');card.className='item';const label=document.createElement('p');label.textContent=String(song.title||'未命名')+' — '+String(song.artist||'');const button=document.createElement('button');button.textContent='加入隊列';button.disabled=!song.youtube_url;button.addEventListener('click',async()=>{button.disabled=true;try{await addSong(song.youtube_url,song.title);}catch(error){status(error.message);}finally{button.disabled=!song.youtube_url;}});card.append(label,button);box.append(card);});}
-async function loadLibrary(){libraryReady=false;el('libraryStatus').textContent='載入歌庫中…';el('results').replaceChildren();try{const data=await api('/api/songs');songs=Array.isArray(data.songs)?data.songs:[];libraryReady=true;renderLibrary();}catch(error){el('libraryStatus').textContent='載入失敗，請按重新載入';throw error;}}
-action('create',async()=>{const data=await api('/api/rooms',{roomName:el('name').value.trim(),password:el('newPassword').value});el('room').value=data.roomCode;el('newPassword').value='';status('房間已建立：'+data.roomCode+'。請用剛設定的密碼登入。');});
-action('login',async()=>{const data=await api('/api/login',{roomCode:el('room').value.trim().toUpperCase(),password:el('password').value});if(!data.roomCode||!data.roomToken)throw new Error('登入回應與目前手機頁不兼容');if(socket)socket.disconnect();socket=io({auth:{roomCode:data.roomCode,roomToken:data.roomToken}});socket.on('queueUpdated',renderQueue);socket.on('connect_error',()=>status('即時連線驗證失敗；目前後端仍待多裝置權限修復。'));socket.on('disconnect',()=>status('即時連線中斷，正在等待重新連線。'));const url=new URL('/tv.html',location.origin);url.searchParams.set('room',data.roomCode);url.searchParams.set('token',data.roomToken);el('tv').href=url.href;el('tvUrl').value=url.href;el('password').value='';el('access').hidden=true;el('controls').hidden=false;status('已登入 '+data.roomCode);const queue=await api('/api/queue');renderQueue(queue.queue||[]);await loadLibrary();});
-action('reload',loadLibrary);
-action('add',async()=>{await addSong(el('url').value.trim(),el('title').value.trim());el('url').value='';});
+const el=id=>document.getElementById(id);let songs=[],socket=null,libraryReady=false;
+function status(text,kind){const s=el('status');s.textContent=text;s.className='status'+(kind==='ok'?' ok':kind==='error'?' error':'');}
+async function api(url,body){const r=await fetch(url,{method:body===undefined?'GET':'POST',credentials:'same-origin',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});let d;try{d=await r.json();}catch{throw Error('Server 回應唔正確');}if(!r.ok)throw Error(d.error||'請求失敗');return d;}
+function action(id,fn){el(id).addEventListener('click',async()=>{el(id).disabled=true;try{await fn();}catch(e){status(e.message||'操作失敗','error');}finally{el(id).disabled=false;}});}
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===id));window.scrollTo({top:0,behavior:'smooth'});}
+document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>showPage(tab.dataset.page)));
+function renderQueue(q){el('queueCount').textContent=q.length;const box=el('queue');box.replaceChildren();if(!q.length){box.innerHTML='<div class="empty">仲未有歌。<br>去「點歌」貼 YouTube 連結。</div>';return;}q.forEach((s,i)=>{const row=document.createElement('div');row.className='song';row.innerHTML='<div class="art"></div><div class="info"><strong></strong><span></span></div>';row.querySelector('.art').textContent=i+1;row.querySelector('strong').textContent=s.title||'YouTube 歌曲';row.querySelector('span').textContent='主唱：'+(s.singer||'Guest');box.append(row);});}
+async function addSong(url,title){const d=await api('/api/queue',{youtubeUrl:url,title:title||'',singer:el('singer').value.trim()||'Guest'});renderQueue(d.queue||[]);status('已加入隊列','ok');showPage('page-queue');}
+function renderLibrary(){const box=el('results');box.replaceChildren();if(!libraryReady)return;const q=el('query').value.trim().toLowerCase();const matches=songs.filter(s=>[s.title,s.artist,s.category,s.language].map(v=>String(v||'')).join(' ').toLowerCase().includes(q));el('libraryStatus').textContent='符合 '+matches.length+' 首，顯示最多 100 首';if(!matches.length){box.innerHTML='<div class="empty">搵唔到歌。</div>';return;}matches.slice(0,100).forEach(song=>{const row=document.createElement('div');row.className='song';row.innerHTML='<div class="art"></div><div class="info"><strong></strong><span></span></div>';row.querySelector('.art').textContent=(song.title||'?').slice(0,1).toUpperCase();row.querySelector('strong').textContent=song.title||'未命名';row.querySelector('span').textContent=song.artist||'';const b=document.createElement('button');b.textContent='加入';b.disabled=!song.youtube_url;b.addEventListener('click',async()=>{b.disabled=true;try{await addSong(song.youtube_url,song.title);}catch(e){status(e.message,'error');}finally{b.disabled=!song.youtube_url;}});row.append(b);box.append(row);});}
+async function loadLibrary(){libraryReady=false;el('libraryStatus').textContent='載入歌庫中…';el('results').replaceChildren();try{const d=await api('/api/songs');songs=Array.isArray(d.songs)?d.songs:[];libraryReady=true;renderLibrary();}catch(e){el('libraryStatus').textContent='載入失敗，請按重新載入';throw e;}}
+action('create',async()=>{const d=await api('/api/rooms',{roomName:el('name').value.trim(),password:el('newPassword').value});el('room').value=d.roomCode;el('newPassword').value='';status('房間已建立：'+d.roomCode+'。請用剛設定的密碼登入。','ok');});
+action('login',async()=>{const d=await api('/api/login',{roomCode:el('room').value.trim().toUpperCase(),password:el('password').value});if(!d.roomCode||!d.roomToken)throw Error('登入回應不兼容');if(socket)socket.disconnect();socket=io({auth:{roomCode:d.roomCode,roomToken:d.roomToken}});socket.on('queueUpdated',renderQueue);socket.on('connect_error',()=>status('即時連線驗證失敗；請重新登入。','error'));socket.on('disconnect',()=>status('即時連線中斷。','error'));const u=new URL('/tv.html',location.origin);u.searchParams.set('room',d.roomCode);u.searchParams.set('token',d.roomToken);el('tv').href=u.href;el('tvUrl').value=u.href;el('password').value='';el('access').hidden=true;el('controls').hidden=false;el('tabs').hidden=false;status('已登入 '+d.roomCode,'ok');const q=await api('/api/queue');renderQueue(q.queue||[]);await loadLibrary();});
+action('reload',loadLibrary);action('add',async()=>{await addSong(el('url').value.trim(),el('title').value.trim());el('url').value='';});
 el('query').addEventListener('input',renderLibrary);
-el('search').addEventListener('click',()=>{const q=el('youtubeQuery').value.trim();if(!q){status('請輸入歌名或歌手');return;}window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(q+' karaoke'),'_blank','noopener,noreferrer');});
+el('search').addEventListener('click',()=>{const q=el('youtubeQuery').value.trim();if(!q){status('請輸入歌名或歌手','error');return;}window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(q+' karaoke'),'_blank','noopener,noreferrer');});
+(function(){const shared=new URLSearchParams(location.search).get('shared');if(!shared)return;el('url').value=shared;history.replaceState(null,'',location.pathname);status('已從 Android 分享帶入網址；登入後按「加入隊列」。','ok');})();
 </script>
-</body>
-</html>
+</body></html>
