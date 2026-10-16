@@ -25,6 +25,7 @@
     <div>
       <div id="now">等待第一首歌…</div>
       <button onclick="skip()">跳過呢首</button>
+      <button onclick="toggleFullscreen()">全螢幕</button>
     </div>
     <div id="queue"></div>
   </div>
@@ -72,6 +73,18 @@
     function skip() {
       socket.emit('skipSong');
     }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+    });
 
     async function loadLyrics(videoId) {
       lyrics = [];

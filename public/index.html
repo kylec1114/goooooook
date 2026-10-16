@@ -13,7 +13,7 @@
     input, button { width: 100%; padding: 13px; margin: 7px 0; border-radius: 10px; border: 1px solid #333; font-size: 16px; }
     button { background: #e91e63; color: #fff; border: 0; font-weight: 800; }
     button.secondary { background: #2a2a35; }
-    .song { background: #22222d; padding: 12px; border-radius: 10px; margin: 8px 0; }
+    .song, .result { background: #22222d; padding: 12px; border-radius: 10px; margin: 8px 0; }
     small { color: #9aa; }
     .hidden { display: none; }
   </style>
@@ -39,11 +39,22 @@
   </div>
 
   <div id="appCard" class="card hidden">
-    <h3>貼 YouTube 連結</h3>
+    <h3>搜尋歌庫</h3>
+    <input id="libraryQuery" placeholder="輸入歌名／歌手，搜尋你 Excel 入面嘅歌" />
+    <button onclick="searchLibrary()">搜尋歌庫</button>
+    <div id="libraryResults"></div>
+
+    <h3>YouTube 搜尋捷徑</h3>
+    <input id="youtubeQuery" placeholder="輸入歌名／歌手，開 YouTube 搜尋" />
+    <button class="secondary" onclick="openYouTubeSearch()">喺 YouTube 搜尋</button>
+    <small>會開新分頁；你揀完片後複製 link 貼返入下面。</small>
+
+    <h3>或直接貼 YouTube 連結</h3>
     <input id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." />
     <input id="songTitle" placeholder="歌名（可留空）" />
     <input id="singer" placeholder="邊個唱？" />
     <button onclick="addToQueue()">加入隊列</button>
+
     <h3>隊列</h3>
     <div id="queue"></div>
     <h3>電視連結</h3>
@@ -55,6 +66,7 @@
     let roomCode = '';
     let roomToken = '';
     let socket = null;
+    let songs = [];
 
     function toggleCreate() {
       document.getElementById('createCard').classList.toggle('hidden');
@@ -76,6 +88,7 @@
         `<code>/tv.html?room=${roomCode}&token=${roomToken}</code>`;
       connectSocket();
       loadQueue();
+      loadSongs();
     }
 
     async function createRoom() {
@@ -104,6 +117,50 @@
       const data = await res.json();
       if (!res.ok) return alert(data.error);
       afterLogin(data);
+    }
+
+    async function loadSongs() {
+      const res = await fetch('/api/songs');
+      const data = await res.json();
+      songs = data.songs || [];
+    }
+
+    function searchLibrary() {
+      const q = document.getElementById('libraryQuery').value.trim().toLowerCase();
+      if (!q) return alert('請輸入搜尋字');
+      const results = songs.filter(s =>
+        (s.title + ' ' + s.artist + ' ' + s.category).toLowerCase().includes(q)
+      );
+      document.getElementById('libraryResults').innerHTML = results.length
+        ? results.map(s => `
+          <div class="result">
+            <b>${s.title}</b> — ${s.artist}<br />
+            <small>${s.category || ''} ${s.language || ''}</small><br />
+            <button onclick="addToQueueFromLibrary('${s.youtubeUrl}', '${s.title.replace(/'/g, "")}')">加入隊列</button>
+          </div>`
+        ).join('')
+        : '<small>搵唔到，試下用 YouTube 搜尋捷徑。</small>';
+    }
+
+    function openYouTubeSearch() {
+      const q = document.getElementById('youtubeQuery').value.trim();
+      if (!q) return alert('請先輸入歌名或歌手');
+      window.open(
+        'https://www.youtube.com/results?search_query=' + encodeURIComponent(q + ' karaoke'),
+        '_blank'
+      );
+    }
+
+    async function addToQueueFromLibrary(youtubeUrl, title) {
+      const singer = prompt('邊個唱？', 'Guest') || 'Guest';
+      const res = await fetch('/api/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ youtubeUrl, title, singer })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+      renderQueue(data.queue);
     }
 
     async function addToQueue() {
