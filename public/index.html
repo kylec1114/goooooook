@@ -2,6 +2,9 @@
 <html lang="zh-HK">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#e91e63">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 <title>goooooook</title>
 <style>
 *{box-sizing:border-box}body{margin:0;padding:20px;background:#0f0f13;color:#eee;font:16px system-ui;max-width:760px;margin:auto}section{background:#191922;padding:18px;border-radius:14px;margin:16px 0}input,button,a.link{font:inherit;padding:12px;border-radius:8px;margin:6px 0;width:100%}input{background:#fff;color:#111;border:1px solid #777}button,a.link{background:#e91e63;color:white;border:0;cursor:pointer}button:disabled{opacity:.5}a.link{display:block;text-align:center;overflow-wrap:anywhere}small{display:block;color:#aaa}.item{padding:12px;margin:8px 0;background:#252532;border-radius:8px}#status{white-space:pre-wrap;overflow-wrap:anywhere}textarea{width:100%;min-height:100px} [hidden]{display:none!important}
@@ -36,11 +39,18 @@ async function addSong(url,title){const data=await api('/api/queue',{youtubeUrl:
 function renderLibrary(){const box=el('results');box.replaceChildren();if(!libraryReady)return;const q=el('query').value.trim().toLowerCase();const matches=songs.filter(s=>[s.title,s.artist,s.category,s.language].map(v=>String(v||'')).join(' ').toLowerCase().includes(q));el('libraryStatus').textContent='符合 '+matches.length+' 首，顯示最多 100 首';matches.slice(0,100).forEach(song=>{const card=document.createElement('div');card.className='item';const label=document.createElement('p');label.textContent=String(song.title||'未命名')+' — '+String(song.artist||'');const button=document.createElement('button');button.textContent='加入隊列';button.disabled=!song.youtube_url;button.addEventListener('click',async()=>{button.disabled=true;try{await addSong(song.youtube_url,song.title);}catch(error){status(error.message);}finally{button.disabled=!song.youtube_url;}});card.append(label,button);box.append(card);});}
 async function loadLibrary(){libraryReady=false;el('libraryStatus').textContent='載入歌庫中…';el('results').replaceChildren();try{const data=await api('/api/songs');songs=Array.isArray(data.songs)?data.songs:[];libraryReady=true;renderLibrary();}catch(error){el('libraryStatus').textContent='載入失敗，請按重新載入';throw error;}}
 action('create',async()=>{const data=await api('/api/rooms',{roomName:el('name').value.trim(),password:el('newPassword').value});el('room').value=data.roomCode;el('newPassword').value='';status('房間已建立：'+data.roomCode+'。請用剛設定的密碼登入。');});
-action('login',async()=>{const data=await api('/api/login',{roomCode:el('room').value.trim().toUpperCase(),password:el('password').value});if(!data.roomCode||!data.roomToken)throw new Error('登入回應與目前手機頁不兼容');if(socket)socket.disconnect();socket=io({auth:{roomCode:data.roomCode,roomToken:data.roomToken}});socket.on('queueUpdated',renderQueue);socket.on('connect_error',()=>status('即時連線驗證失敗；目前後端仍待多裝置權限修復。'));socket.on('disconnect',()=>status('即時連線中斷，正在等待重新連線。'));const url=new URL('/tv.html',location.origin);url.searchParams.set('room',data.roomCode);url.searchParams.set('token',data.roomToken);el('tv').href=url.href;el('tvUrl').value=url.href;el('password').value='';el('access').hidden=true;el('controls').hidden=false;status('已登入 '+data.roomCode);const queue=await api('/api/queue');renderQueue(queue.queue||[]);await loadLibrary();});
+action('login',async()=>{const data=await api('/api/login',{roomCode:el('room').value.trim().toUpperCase(),password:el('password').value});if(!data.roomCode||!data.roomToken)throw new Error('登入回應與目前手機頁不兼容');if(socket)socket.disconnect();socket=io({auth:{roomCode:data.roomCode,roomToken:data.roomToken}});socket.on('queueUpdated',renderQueue);socket.on('connect_error',()=>status('即時連線驗證失敗；請重新登入。'));socket.on('disconnect',()=>status('即時連線中斷，正在等待重新連線。'));const url=new URL('/tv.html',location.origin);url.searchParams.set('room',data.roomCode);url.searchParams.set('token',data.roomToken);el('tv').href=url.href;el('tvUrl').value=url.href;el('password').value='';el('access').hidden=true;el('controls').hidden=false;status('已登入 '+data.roomCode);const queue=await api('/api/queue');renderQueue(queue.queue||[]);await loadLibrary();});
 action('reload',loadLibrary);
 action('add',async()=>{await addSong(el('url').value.trim(),el('title').value.trim());el('url').value='';});
 el('query').addEventListener('input',renderLibrary);
 el('search').addEventListener('click',()=>{const q=el('youtubeQuery').value.trim();if(!q){status('請輸入歌名或歌手');return;}window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(q+' karaoke'),'_blank','noopener,noreferrer');});
+(function handleSharedLink(){
+  const shared=new URLSearchParams(location.search).get('shared');
+  if(!shared)return;
+  el('url').value=shared;
+  history.replaceState(null,'',location.pathname);
+  status('已從 Android 分享帶入網址；登入後按「加入隊列」。');
+})();
 </script>
 </body>
 </html>
