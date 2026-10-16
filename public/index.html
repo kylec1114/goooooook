@@ -1,1 +1,194 @@
-PLACEHOLDER_INDEX
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>goooooook</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #0f0f13; color: #f2f2f2; }
+    h1 { margin: 0 0 4px; font-size: 32px; }
+    p.sub { margin: 0 0 20px; color: #9aa; }
+    .card { background: #191922; border: 1px solid #2a2a35; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+    input, button { width: 100%; padding: 13px; margin: 7px 0; border-radius: 10px; border: 1px solid #333; font-size: 16px; }
+    button { background: #e91e63; color: #fff; border: 0; font-weight: 800; }
+    button.secondary { background: #2a2a35; }
+    .song, .result { background: #22222d; padding: 12px; border-radius: 10px; margin: 8px 0; }
+    small { color: #9aa; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>goooooook</h1>
+  <p class="sub">私人家庭卡拉OK · 只嵌入 YouTube · Excel 存於 host 機</p>
+
+  <div id="loginCard" class="card">
+    <h3>進入房間</h3>
+    <input id="roomCode" placeholder="7 位房間碼" maxlength="7" />
+    <input id="password" type="password" placeholder="房間密碼" />
+    <button onclick="login()">進入</button>
+    <button class="secondary" onclick="toggleCreate()">建立新房間</button>
+  </div>
+
+  <div id="createCard" class="card hidden">
+    <h3>建立新房間</h3>
+    <input id="newRoomName" placeholder="房間名（例如：屋企 KTV）" />
+    <input id="newPassword" type="password" placeholder="設定密碼（至少 6 位）" />
+    <button onclick="createRoom()">建立</button>
+    <div id="createdRoom" class="hidden"></div>
+  </div>
+
+  <div id="appCard" class="card hidden">
+    <h3>搜尋歌庫</h3>
+    <input id="libraryQuery" placeholder="輸入歌名／歌手，搜尋你 Excel 入面嘅歌" />
+    <button onclick="searchLibrary()">搜尋歌庫</button>
+    <div id="libraryResults"></div>
+
+    <h3>YouTube 搜尋捷徑</h3>
+    <input id="youtubeQuery" placeholder="輸入歌名／歌手，開 YouTube 搜尋" />
+    <button class="secondary" onclick="openYouTubeSearch()">喺 YouTube 搜尋</button>
+    <small>會開新分頁；你揀完片後複製 link 貼返入下面。</small>
+
+    <h3>或直接貼 YouTube 連結</h3>
+    <input id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." />
+    <input id="songTitle" placeholder="歌名（可留空）" />
+    <input id="singer" placeholder="邊個唱？" />
+    <button onclick="addToQueue()">加入隊列</button>
+
+    <h3>隊列</h3>
+    <div id="queue"></div>
+    <h3>電視連結</h3>
+    <div id="tvLink"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    let roomCode = '';
+    let roomToken = '';
+    let socket = null;
+    let songs = [];
+
+    function toggleCreate() {
+      document.getElementById('createCard').classList.toggle('hidden');
+    }
+
+    function connectSocket() {
+      socket = io({ auth: { roomCode, roomToken } });
+      socket.on('queueUpdated', renderQueue);
+      socket.on('connect_error', err => alert('房間驗證失敗：' + err.message));
+    }
+
+    function afterLogin(data) {
+      roomCode = data.roomCode;
+      roomToken = data.roomToken;
+      document.getElementById('loginCard').classList.add('hidden');
+      document.getElementById('createCard').classList.add('hidden');
+      document.getElementById('appCard').classList.remove('hidden');
+      document.getElementById('tvLink').innerHTML =
+        `<code>/tv.html?room=${roomCode}&token=${roomToken}</code>`;
+      connectSocket();
+      loadQueue();
+      loadSongs();
+    }
+
+    async function createRoom() {
+      const roomName = document.getElementById('newRoomName').value.trim();
+      const password = document.getElementById('newPassword').value;
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomName, password })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+      const box = document.getElementById('createdRoom');
+      box.classList.remove('hidden');
+      box.innerHTML = `<b>房間碼：</b>${data.roomCode}<br /><small>請記低呢個碼，並用同一密碼登入。</small>`;
+    }
+
+    async function login() {
+      const roomCodeInput = document.getElementById('roomCode').value.trim();
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomCode: roomCodeInput, password })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+      afterLogin(data);
+    }
+
+    async function loadSongs() {
+      const res = await fetch('/api/songs');
+      const data = await res.json();
+      songs = data.songs || [];
+    }
+
+    function searchLibrary() {
+      const q = document.getElementById('libraryQuery').value.trim().toLowerCase();
+      if (!q) return alert('請輸入搜尋字');
+      const results = songs.filter(s =>
+        (s.title + ' ' + s.artist + ' ' + s.category).toLowerCase().includes(q)
+      );
+      document.getElementById('libraryResults').innerHTML = results.length
+        ? results.map(s => `
+          <div class="result">
+            <b>${s.title}</b> — ${s.artist}<br />
+            <small>${s.category || ''} ${s.language || ''}</small><br />
+            <button onclick="addToQueueFromLibrary('${s.youtubeUrl}', '${s.title.replace(/'/g, "")}')">加入隊列</button>
+          </div>`
+        ).join('')
+        : '<small>搵唔到，試下用 YouTube 搜尋捷徑。</small>';
+    }
+
+    function openYouTubeSearch() {
+      const q = document.getElementById('youtubeQuery').value.trim();
+      if (!q) return alert('請先輸入歌名或歌手');
+      window.open(
+        'https://www.youtube.com/results?search_query=' + encodeURIComponent(q + ' karaoke'),
+        '_blank'
+      );
+    }
+
+    async function addToQueueFromLibrary(youtubeUrl, title) {
+      const singer = prompt('邊個唱？', 'Guest') || 'Guest';
+      const res = await fetch('/api/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ youtubeUrl, title, singer })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+      renderQueue(data.queue);
+    }
+
+    async function addToQueue() {
+      const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
+      const title = document.getElementById('songTitle').value.trim();
+      const singer = document.getElementById('singer').value.trim();
+      const res = await fetch('/api/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ youtubeUrl, title, singer })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+      document.getElementById('youtubeUrl').value = '';
+      renderQueue(data.queue);
+    }
+
+    async function loadQueue() {
+      const res = await fetch('/api/queue');
+      const data = await res.json();
+      renderQueue(data.queue || []);
+    }
+
+    function renderQueue(queue) {
+      document.getElementById('queue').innerHTML = queue.map((s, i) =>
+        `<div class="song"><b>${i + 1}. ${s.title}</b><br /><small>${s.singer} · ${s.videoId}</small></div>`
+      ).join('');
+    }
+  </script>
+</body>
+</html>
