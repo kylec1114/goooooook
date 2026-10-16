@@ -10,7 +10,9 @@ const cookieSession = require('cookie-session');
 const DATA = path.resolve(process.env.GOOOOOOOK_DATA_DIR || path.join(__dirname, 'data'));
 const BOOK = path.join(DATA, 'goooooook.xlsx');
 const LYRICS = path.join(DATA, 'lyrics');
+const STATE = path.join(DATA, 'state');
 fs.mkdirSync(LYRICS, { recursive: true });
+fs.mkdirSync(STATE, { recursive: true });
 const secretFile = path.join(DATA, '.session-secret');
 if (!fs.existsSync(secretFile)) fs.writeFileSync(secretFile, crypto.randomBytes(48).toString('hex'), { mode: 0o600, flag: 'wx' });
 const secret = process.env.SESSION_SECRET || fs.readFileSync(secretFile, 'utf8').trim();
@@ -43,6 +45,30 @@ function videoId(value) {
     return typeof id === 'string' && /^[\w-]{11}$/.test(id) ? id : null;
   } catch { return null; }
 }
+function queueFile(code) { return path.join(STATE, code + '.json'); }
+function getQueue(code) {
+  if (queues.has(code)) return queues.get(code);
+  let value = [];
+  try {
+    const file = queueFile(code);
+    if (fs.existsSync(file)) {
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (Array.isArray(parsed)) value = parsed.filter(s => s && typeof s.id === 'string' && typeof s.videoId === 'string' && /^[\w-]{11}$/.test(s.videoId)).slice(0, 200);
+    }
+  } catch (error) { console.error('Queue state ignored:', error.message); }
+  queues.set(code, value);
+  return value;
+}
+function setQueue(code, value) {
+  const safe = Array.isArray(value) ? value.slice(0, 200) : [];
+  queues.set(code, safe);
+  const file = queueFile(code);
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(safe), { mode: 0o600 });
+  fs.renameSync(tmp, file);
+  return safe;
+}
+for (const file of fs.readdirSync(STATE)) if (file.endsWith('.json')) getQueue(file.slice(0, -5));
 function issue(code, role, parent = null) {
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(key(token), { roomCode: code, role, parent, expires: Date.now() + TTL });
@@ -104,15 +130,15 @@ app.post('/api/login', throttle, (req, res) => {
 app.post('/api/logout', auth, (req, res) => { revoke(req.credential); req.session = null; res.json({ ok: true }); });
 app.post('/api/player', auth, controller, throttle, (req, res) => { res.json({ roomCode: req.identity.roomCode, roomToken: issue(req.identity.roomCode, 'player', req.credential) }); });
 app.get('/api/songs', auth, (req, res) => { res.json({ songs: rows(book(), 'Songs').map(s => ({ song_id: s.song_id, title: s.title, artist: s.artist, youtube_url: s.youtube_url, category: s.category, language: s.language })) }); });
-app.get('/api/queue', auth, (req, res) => res.json({ queue: queues.get(req.identity.roomCode) || [] }));
+app.get('/api/queue', auth, (req, res) => res.json({ queue: getQueue(req.identity.roomCode) }));
 app.post('/api/queue', auth, controller, (req, res) => {
   const id = videoId(req.body.youtubeUrl); if (!id) fail('無效 YouTube 網址');
-  const code = req.identity.roomCode; const q = queues.get(code) || [];
+  const code = req.identity.roomCode; const q = getQueue(code);
   if (q.length >= 200) fail('隊列已滿', 409);
   if (q.some(s => s.videoId === id)) fail('呢首歌已經喺隊列', 409);
   const song = { id: crypto.randomUUID(), videoId: id, youtubeUrl: 'https://www.youtube.com/watch?v=' + id, title: String(req.body.title || 'YouTube 歌曲').slice(0,200), singer: String(req.body.singer || 'Guest').slice(0,80) };
   const wb = book(); const log = rows(wb, 'QueueLog'); log.push({ timestamp: new Date().toISOString(), room_code: code, singer: song.singer, title: song.title, youtube_url: song.youtubeUrl }); wb.Sheets.QueueLog = XLSX.utils.json_to_sheet(log); save(wb);
-  q.push(song); queues.set(code, q); io.to(code).emit('queueUpdated', q); res.json({ queue: q });
+  const saved = setQueue(code, [...q, song]); io.to(code).emit('queueUpdated', saved); res.json({ queue: saved });
 });
 app.get('/api/lyrics/:id', auth, (req, res) => {
   if (!/^[\w-]{11}$/.test(req.params.id)) fail('無效影片ID');
@@ -138,12 +164,12 @@ io.on('connection', socket => {
   socket.use((packet, next) => { try { if (!valid(socket.data.hash)) { socket.disconnect(true); return next(new Error('登入已失效')); } next(); } catch { socket.disconnect(true); } });
   const s = valid(socket.data.hash);
   if (s?.role === 'player' && !leaders.has(code)) leaders.set(code, socket.id);
-  socket.emit('queueUpdated', queues.get(code) || []);
+  socket.emit('queueUpdated', getQueue(code));
   socket.on('claimPlayer', (_, ack) => { const s = valid(socket.data.hash); if (s?.role === 'player' && !leaders.has(code)) leaders.set(code, socket.id); if (typeof ack === 'function') ack({ leader: leaders.get(code) === socket.id }); });
   function advance(data, ack) {
-    const s = valid(socket.data.hash); const q = queues.get(code) || [];
+    const s = valid(socket.data.hash); const q = getQueue(code);
     if (s?.role !== 'player' || leaders.get(code) !== socket.id || !data || typeof data.currentItemId !== 'string' || q[0]?.id !== data.currentItemId) { if (typeof ack === 'function') ack({ ok: false }); return; }
-    q.shift(); io.to(code).emit('queueUpdated', q); if (typeof ack === 'function') ack({ ok: true });
+    const saved = setQueue(code, q.slice(1)); io.to(code).emit('queueUpdated', saved); if (typeof ack === 'function') ack({ ok: true });
   }
   socket.on('nextSong', advance); socket.on('skipSong', advance);
   socket.on('disconnect', () => { if (leaders.get(code) === socket.id) leaders.delete(code); });
@@ -155,4 +181,4 @@ const cleanup = setInterval(() => {
 }, 30000);
 cleanup.unref();
 app.use((err, req, res, next) => { console.error(err.message); res.status(err.status || 500).json({ error: err.status ? err.message : '讀寫失敗，請關閉正在編輯的 Excel 或檢查 host 記錄' }); });
-server.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => console.log('goooooook host ready; sessions and queue reset on restart'));
+server.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => console.log('goooooook host ready; room queues persist in data/state'));
