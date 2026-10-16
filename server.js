@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -27,6 +28,7 @@ app.use(cookieSession({
 }));
 
 const queues = new Map();
+const roomTokens = new Map();
 
 function readWorkbook() {
   if (!fs.existsSync(EXCEL_PATH)) {
@@ -89,6 +91,22 @@ function randomRoomCode() {
   return code;
 }
 
+function issueRoomToken(roomCode) {
+  const token = crypto.randomBytes(24).toString('hex');
+  roomTokens.set(roomCode, { token, issuedAt: Date.now() });
+  return token;
+}
+
+function isValidRoomToken(roomCode, token) {
+  const entry = roomTokens.get(roomCode);
+  if (!entry) return false;
+  if (Date.now() - entry.issuedAt > 12 * 60 * 60 * 1000) {
+    roomTokens.delete(roomCode);
+    return false;
+  }
+  return entry.token === token;
+}
+
 function appendQueueLog(roomCode, singer, song) {
   const wb = readWorkbook();
   ensureSheet(wb, 'QueueLog', ['timestamp', 'room_code', 'singer', 'title', 'youtube_url']);
@@ -135,7 +153,8 @@ app.post('/api/rooms', (req, res) => {
   rows.push([code, bcrypt.hashSync(String(password), 12), roomName || 'Home KTV', 'TRUE']);
   wb.Sheets.Rooms = XLSX.utils.aoa_to_sheet(rows);
   XLSX.writeFile(wb, EXCEL_PATH);
-  res.json({ ok: true, roomCode: code });
+  const token = issueRoomToken(code);
+  res.json({ ok: true, roomCode: code, roomToken: token });
 });
 
 app.post('/api/login', (req, res) => {
@@ -145,11 +164,15 @@ app.post('/api/login', (req, res) => {
   if (!room || !room.password_hash) return res.status(401).json({ error: '房間碼或密碼錯誤' });
   const ok = bcrypt.compareSync(password, String(room.password_hash));
   if (!ok) return res.status(401).json({ error: '房間碼或密碼錯誤' });
-  req.session.roomCode = String(room.room_code).trim().toUpperCase();
-  res.json({ ok: true, roomName: room.room_name || req.session.roomCode });
+  const code = String(room.room_code).trim().toUpperCase();
+  req.session.roomCode = code;
+  const token = issueRoomToken(code);
+  res.json({ ok: true, roomCode: code, roomToken: token, roomName: room.room_name || code });
 });
 
 app.post('/api/logout', (req, res) => {
+  const roomCode = req.session && req.session.roomCode;
+  if (roomCode) roomTokens.delete(roomCode);
   req.session = null;
   res.json({ ok: true });
 });
@@ -166,6 +189,12 @@ app.post('/api/queue', requireRoom, (req, res) => {
   const { youtubeUrl, singer, title } = req.body || {};
   const videoId = extractVideoId(youtubeUrl);
   if (!videoId) return res.status(400).json({ error: '請貼上有效 YouTube 連結' });
+
+  const queue = queues.get(req.roomCode) || [];
+  if (queue.some(song => song.videoId === videoId)) {
+    return res.status(409).json({ error: '呢首歌已經喺隊列入面' });
+  }
+
   const song = {
     videoId,
     youtubeUrl,
@@ -173,7 +202,6 @@ app.post('/api/queue', requireRoom, (req, res) => {
     singer: singer || 'Guest',
     addedAt: Date.now()
   };
-  const queue = queues.get(req.roomCode) || [];
   queue.push(song);
   queues.set(req.roomCode, queue);
   appendQueueLog(req.roomCode, song.singer, song);
@@ -193,22 +221,29 @@ app.get('/api/lyrics/:videoId', requireRoom, (req, res) => {
   res.json({ title: song.title, lyrics: parseLrc(content) });
 });
 
-io.on('connection', socket => {
-  socket.on('joinRoom', roomCode => {
-    if (!getRoom(roomCode)) return;
-    socket.join(roomCode);
-    socket.emit('queueUpdated', queues.get(roomCode) || []);
-  });
+io.use((socket, next) => {
+  const { roomCode, roomToken } = socket.handshake.auth || {};
+  if (!roomCode || !roomToken || !isValidRoomToken(roomCode, roomToken)) {
+    return next(new Error('房間驗證失敗'));
+  }
+  socket.roomCode = roomCode;
+  next();
+});
 
-  function advance(roomCode) {
+io.on('connection', socket => {
+  const roomCode = socket.roomCode;
+  socket.join(roomCode);
+  socket.emit('queueUpdated', queues.get(roomCode) || []);
+
+  function advance() {
     const queue = queues.get(roomCode) || [];
     queue.shift();
     queues.set(roomCode, queue);
     io.to(roomCode).emit('queueUpdated', queue);
   }
 
-  socket.on('nextSong', ({ roomCode }) => advance(roomCode));
-  socket.on('skipSong', ({ roomCode }) => advance(roomCode));
+  socket.on('nextSong', () => advance());
+  socket.on('skipSong', () => advance());
 });
 
 server.listen(PORT, '0.0.0.0', () => {

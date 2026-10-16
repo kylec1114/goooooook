@@ -46,14 +46,36 @@
     <button onclick="addToQueue()">加入隊列</button>
     <h3>隊列</h3>
     <div id="queue"></div>
+    <h3>電視連結</h3>
+    <div id="tvLink"></div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     let roomCode = '';
+    let roomToken = '';
+    let socket = null;
 
     function toggleCreate() {
       document.getElementById('createCard').classList.toggle('hidden');
+    }
+
+    function connectSocket() {
+      socket = io({ auth: { roomCode, roomToken } });
+      socket.on('queueUpdated', renderQueue);
+      socket.on('connect_error', err => alert('房間驗證失敗：' + err.message));
+    }
+
+    function afterLogin(data) {
+      roomCode = data.roomCode;
+      roomToken = data.roomToken;
+      document.getElementById('loginCard').classList.add('hidden');
+      document.getElementById('createCard').classList.add('hidden');
+      document.getElementById('appCard').classList.remove('hidden');
+      document.getElementById('tvLink').innerHTML =
+        `<code>/tv.html?room=${roomCode}&token=${roomToken}</code>`;
+      connectSocket();
+      loadQueue();
     }
 
     async function createRoom() {
@@ -81,11 +103,7 @@
       });
       const data = await res.json();
       if (!res.ok) return alert(data.error);
-      roomCode = roomCodeInput.toUpperCase();
-      document.getElementById('loginCard').classList.add('hidden');
-      document.getElementById('createCard').classList.add('hidden');
-      document.getElementById('appCard').classList.remove('hidden');
-      loadQueue();
+      afterLogin(data);
     }
 
     async function addToQueue() {
@@ -114,10 +132,6 @@
         `<div class="song"><b>${i + 1}. ${s.title}</b><br /><small>${s.singer} · ${s.videoId}</small></div>`
       ).join('');
     }
-
-    const socket = io();
-    socket.on('connect', () => { if (roomCode) socket.emit('joinRoom', roomCode); });
-    socket.on('queueUpdated', renderQueue);
   </script>
 </body>
 </html>

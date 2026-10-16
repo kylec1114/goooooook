@@ -34,12 +34,16 @@
   <script>
     const params = new URLSearchParams(location.search);
     const roomCode = (params.get('room') || '').toUpperCase();
+    const roomToken = params.get('token') || '';
     let player = null;
     let current = null;
     let lyrics = [];
 
-    const socket = io();
-    socket.emit('joinRoom', roomCode);
+    const socket = io({ auth: { roomCode, roomToken } });
+
+    socket.on('connect_error', () => {
+      document.getElementById('now').textContent = '房間驗證失敗，請由手機重新取得電視連結。';
+    });
 
     socket.on('queueUpdated', queue => {
       const next = queue[0] || null;
@@ -66,7 +70,7 @@
     }
 
     function skip() {
-      socket.emit('skipSong', { roomCode });
+      socket.emit('skipSong');
     }
 
     async function loadLyrics(videoId) {
@@ -85,7 +89,7 @@
         events: {
           onStateChange: event => {
             if (event.data === YT.PlayerState.ENDED) {
-              socket.emit('nextSong', { roomCode });
+              socket.emit('nextSong');
             }
           }
         }
