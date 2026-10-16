@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>goooooook</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #111; color: #eee; }
+    input, button { width: 100%; padding: 12px; margin: 6px 0; border-radius: 8px; border: 1px solid #444; box-sizing: border-box; }
+    button { background: #e91e63; color: white; border: 0; font-weight: 700; }
+    .song { background: #1d1d1d; padding: 10px; border-radius: 8px; margin: 8px 0; }
+    small { color: #aaa; }
+  </style>
+</head>
+<body>
+  <h1>goooooook</h1>
+  <div id="loginBox">
+    <input id="roomCode" placeholder="7 位房間碼" maxlength="7" />
+    <input id="password" type="password" placeholder="房間密碼" />
+    <button onclick="login()">進入房間</button>
+  </div>
+  <div id="appBox" style="display:none">
+    <h3>貼 YouTube 連結</h3>
+    <input id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." />
+    <input id="singer" placeholder="邊個唱？" />
+    <button onclick="addToQueue()">加入隊列</button>
+    <h3>隊列</h3>
+    <div id="queue"></div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    let roomCode = '';
+    async function login() {
+      const roomCodeInput = document.getElementById('roomCode').value.trim();
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomCode: roomCodeInput, password })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+      roomCode = roomCodeInput.toUpperCase();
+      document.getElementById('loginBox').style.display = 'none';
+      document.getElementById('appBox').style.display = 'block';
+      loadQueue();
+    }
+    async function addToQueue() {
+      const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
+      const singer = document.getElementById('singer').value.trim();
+      const res = await fetch('/api/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ youtubeUrl, singer })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+      document.getElementById('youtubeUrl').value = '';
+      renderQueue(data.queue);
+    }
+    async function loadQueue() {
+      const res = await fetch('/api/queue');
+      const data = await res.json();
+      renderQueue(data.queue || []);
+    }
+    function renderQueue(queue) {
+      document.getElementById('queue').innerHTML = queue.map((s, i) =>
+        `<div class="song"><b>${i + 1}. ${s.title}</b><br /><small>${s.singer} · ${s.videoId}</small></div>`
+      ).join('');
+    }
+    const socket = io();
+    socket.on('connect', () => { if (roomCode) socket.emit('joinRoom', roomCode); });
+    socket.on('queueUpdated', renderQueue);
+  </script>
+</body>
+</html>

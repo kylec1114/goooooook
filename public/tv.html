@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <title>goooooook TV</title>
+  <style>
+    body { margin: 0; background: black; color: white; font-family: system-ui, sans-serif; }
+    #player { width: 100vw; height: 70vh; }
+    #now { padding: 16px; font-size: 24px; }
+    #queue { padding: 0 16px 16px; }
+    .item { opacity: .75; margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+  <div id="now">等待第一首歌…</div>
+  <div id="queue"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const roomCode = (params.get('room') || '').toUpperCase();
+    let current = null;
+    const socket = io();
+    socket.emit('joinRoom', roomCode);
+    socket.on('queueUpdated', queue => {
+      current = queue[0] || null;
+      render(queue);
+      if (current) {
+        document.getElementById('now').innerHTML = `<b>而家唱：</b>${current.title} — ${current.singer}`;
+        loadPlayer(current.videoId);
+      } else {
+        document.getElementById('now').textContent = '等待第一首歌…';
+        document.getElementById('player').innerHTML = '';
+      }
+    });
+    function render(queue) {
+      document.getElementById('queue').innerHTML = queue.slice(1).map((s, i) =>
+        `<div class="item">${i + 1}. ${s.title} — ${s.singer}</div>`
+      ).join('');
+    }
+    function loadPlayer(videoId) {
+      document.getElementById('player').innerHTML = `
+        <iframe width="100%" height="100%"
+          src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1"
+          allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    }
+    setInterval(async () => {
+      if (!current) return;
+      const res = await fetch('/api/queue');
+      const data = await res.json();
+      if (!data.queue || !data.queue.length) return;
+      if (Date.now() - current.addedAt > 4 * 60 * 1000) {
+        socket.emit('nextSong', { roomCode });
+      }
+    }, 5000);
+  </script>
+</body>
+</html>
