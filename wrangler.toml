@@ -1,12 +1,16 @@
 name = "goooooook"
-main = "worker.js"
+main = "cloud/worker.mjs"
 compatibility_date = "2026-10-01"
 
 [assets]
 directory = "./public"
 binding = "ASSETS"
+run_worker_first = true
 
 [[d1_databases]]
 binding = "DB"
 database_name = "goooooook"
 database_id = "d4be6b98-dabf-44cc-9d07-2a99914bdad8"
+
+[triggers]
+crons = ["* * * * *"]
