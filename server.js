@@ -7,247 +7,152 @@ const { Server } = require('socket.io');
 const XLSX = require('xlsx');
 const bcrypt = require('bcryptjs');
 const cookieSession = require('cookie-session');
-
-const PORT = process.env.PORT || 3000;
-const EXCEL_PATH = path.join(__dirname, 'data', 'goooooook.xlsx');
-const LYRICS_DIR = path.join(__dirname, 'data', 'lyrics');
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-to-a-long-random-string';
-
+const DATA = path.resolve(process.env.GOOOOOOOK_DATA_DIR || path.join(__dirname, 'data'));
+const BOOK = path.join(DATA, 'goooooook.xlsx');
+const LYRICS = path.join(DATA, 'lyrics');
+fs.mkdirSync(LYRICS, { recursive: true });
+const secretFile = path.join(DATA, '.session-secret');
+if (!fs.existsSync(secretFile)) fs.writeFileSync(secretFile, crypto.randomBytes(48).toString('hex'), { mode: 0o600, flag: 'wx' });
+const secret = process.env.SESSION_SECRET || fs.readFileSync(secretFile, 'utf8').trim();
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(cookieSession({
-  name: 'goooooook_session',
-  keys: [SESSION_SECRET],
-  maxAge: 12 * 60 * 60 * 1000,
-  httpOnly: true,
-  sameSite: 'strict'
-}));
-
+const io = new Server(server, { maxHttpBufferSize: 16384 });
+const sessions = new Map();
 const queues = new Map();
-const roomTokens = new Map();
-
-function readWorkbook() {
-  if (!fs.existsSync(EXCEL_PATH)) {
-    throw new Error('找不到 data/goooooook.xlsx。請先執行：npm run setup');
-  }
-  return XLSX.readFile(EXCEL_PATH);
+const leaders = new Map();
+const attempts = new Map();
+const TTL = 12 * 60 * 60 * 1000;
+const key = token => crypto.createHash('sha256').update(token).digest('hex');
+function fail(message, status = 400) { const e = new Error(message); e.status = status; throw e; }
+function rows(wb, name) { return wb.Sheets[name] ? XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' }) : []; }
+function book() { return XLSX.readFile(BOOK); }
+function save(wb) { const tmp = BOOK + '.tmp.xlsx'; XLSX.writeFile(wb, tmp); fs.renameSync(tmp, BOOK); }
+if (!fs.existsSync(BOOK)) {
+  const wb = XLSX.utils.book_new();
+  for (const [name, headers] of Object.entries({ Rooms: ['room_code','password_hash','room_name','active'], Songs: ['song_id','title','artist','youtube_url','category','language','lrc_file'], QueueLog: ['timestamp','room_code','singer','title','youtube_url'] })) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers]), name);
+  save(wb);
 }
-
-function sheetToObjects(wb, sheetName) {
-  const sheet = wb.Sheets[sheetName];
-  if (!sheet) return [];
-  return XLSX.utils.sheet_to_json(sheet, { defval: '' });
-}
-
-function ensureSheet(wb, name, headers) {
-  if (!wb.Sheets[name]) {
-    wb.SheetNames.push(name);
-    wb.Sheets[name] = XLSX.utils.aoa_to_sheet([headers]);
-  }
-}
-
-function getRoom(roomCode) {
-  const wb = readWorkbook();
-  const rooms = sheetToObjects(wb, 'Rooms');
-  return rooms.find(r =>
-    String(r.room_code).trim().toUpperCase() === roomCode.trim().toUpperCase() &&
-    String(r.active).toUpperCase() === 'TRUE'
-  );
-}
-
-function getSongs() {
-  const wb = readWorkbook();
-  return sheetToObjects(wb, 'Songs').map(song => ({
-    song_id: song.song_id,
-    title: song.title,
-    artist: song.artist,
-    youtube_url: song.youtube_url,
-    category: song.category,
-    language: song.language,
-    lrc_file: song.lrc_file
-  }));
-}
-
-function extractVideoId(url) {
+function room(code) { return rows(book(), 'Rooms').find(r => String(r.room_code).trim().toUpperCase() === code && String(r.active).toUpperCase() === 'TRUE'); }
+function videoId(value) {
   try {
-    const u = new URL(url);
-    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1);
-    return u.searchParams.get('v');
-  } catch {
-    return null;
-  }
+    const u = new URL(value);
+    if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password || u.port) return null;
+    let id;
+    if (u.hostname === 'youtu.be') id = u.pathname.slice(1);
+    else if (['youtube.com','www.youtube.com','m.youtube.com','music.youtube.com'].includes(u.hostname)) id = u.pathname === '/watch' ? u.searchParams.get('v') : /^\/(?:shorts|embed|live)\/([\w-]{11})\/?$/.exec(u.pathname)?.[1];
+    return typeof id === 'string' && /^[\w-]{11}$/.test(id) ? id : null;
+  } catch { return null; }
 }
-
-function randomRoomCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code;
-  do {
-    code = Array.from({ length: 7 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  } while (getRoom(code));
-  return code;
-}
-
-function issueRoomToken(roomCode) {
-  const token = crypto.randomBytes(24).toString('hex');
-  roomTokens.set(roomCode, { token, issuedAt: Date.now() });
+function issue(code, role, parent = null) {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(key(token), { roomCode: code, role, parent, expires: Date.now() + TTL });
   return token;
 }
-
-function isValidRoomToken(roomCode, token) {
-  const entry = roomTokens.get(roomCode);
-  if (!entry) return false;
-  if (Date.now() - entry.issuedAt > 12 * 60 * 60 * 1000) {
-    roomTokens.delete(roomCode);
-    return false;
-  }
-  return entry.token === token;
+function valid(hash) {
+  const s = sessions.get(hash);
+  if (!s || s.expires <= Date.now()) return null;
+  if (s.parent) { const parent = sessions.get(s.parent); if (!parent || parent.expires <= Date.now()) return null; }
+  return room(s.roomCode) ? s : null;
 }
-
-function appendQueueLog(roomCode, singer, song) {
-  const wb = readWorkbook();
-  ensureSheet(wb, 'QueueLog', ['timestamp', 'room_code', 'singer', 'title', 'youtube_url']);
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets.QueueLog, { header: 1 });
-  rows.push([new Date().toISOString(), roomCode, singer || 'Guest', song.title, song.youtube_url]);
-  wb.Sheets.QueueLog = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.writeFile(wb, EXCEL_PATH);
+function revoke(hash) {
+  sessions.delete(hash);
+  for (const [h, s] of sessions) if (s.parent === hash) sessions.delete(h);
+  for (const socket of io.sockets.sockets.values()) if (!valid(socket.data.hash)) socket.disconnect(true);
 }
-
-function parseLrc(content) {
-  const lines = [];
-  for (const raw of content.split(/\r?\n/)) {
-    const matches = [...raw.matchAll(/\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g)];
-    const text = raw.replace(/\[[^\]]*\]/g, '').trim();
-    if (!matches.length || !text) continue;
-    for (const m of matches) {
-      const minutes = parseInt(m[1], 10);
-      const seconds = parseInt(m[2], 10);
-      const fraction = m[3] ? parseFloat('0.' + m[3]) : 0;
-      lines.push({ time: minutes * 60 + seconds + fraction, text });
-    }
+app.use(express.json({ limit: '16kb' }));
+app.use((req, res, next) => {
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'GET' && req.headers.origin) {
+    try { if (new URL(req.headers.origin).host !== req.headers.host) return res.status(403).json({ error: '不允許跨網站操作' }); }
+    catch { return res.status(403).json({ error: '無效來源' }); }
   }
-  return lines.sort((a, b) => a.time - b.time);
+  next();
+});
+app.use(cookieSession({ name: 'goooooook_session', keys: [secret], httpOnly: true, sameSite: 'strict', maxAge: TTL, secure: process.env.COOKIE_SECURE === 'true' }));
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
+function auth(req, res, next) {
+  const header = req.get('authorization');
+  const hash = header ? (/^Bearer ([a-f0-9]{64})$/.test(header) ? key(header.slice(7)) : null) : req.session?.credential;
+  const s = hash && valid(hash);
+  if (!s) return res.status(401).json({ error: '登入已失效，請重新登入' });
+  req.credential = hash; req.identity = s; next();
 }
-
-function requireRoom(req, res, next) {
-  const roomCode = req.session && req.session.roomCode;
-  if (!roomCode || !getRoom(roomCode)) {
-    return res.status(401).json({ error: '請先登入房間' });
-  }
-  req.roomCode = roomCode;
+function controller(req, res, next) { if (req.identity.role !== 'controller') return res.status(403).json({ error: '只有遙控端可以操作' }); next(); }
+function throttle(req, res, next) {
+  const ip = req.socket.remoteAddress || 'unknown';
+  const now = Date.now(); let a = attempts.get(ip);
+  if (!a || a.until <= now) { a = { count: 0, until: now + 60000 }; attempts.set(ip, a); }
+  if (++a.count > 12) return res.status(429).json({ error: '操作太頻密，請稍後再試' });
   next();
 }
-
-app.post('/api/rooms', (req, res) => {
-  const { password, roomName } = req.body || {};
-  if (!password || String(password).length < 6) {
-    return res.status(400).json({ error: '密碼至少需要 6 個字元' });
+function password(value) { if (typeof value !== 'string' || value.length < 6 || Buffer.byteLength(value) > 72) fail('密碼需至少6字元，最多72 UTF-8 bytes'); return value; }
+function loginResponse(req, res, code) { const token = issue(code, 'controller'); req.session = { credential: key(token) }; res.json({ ok: true, roomCode: code, roomToken: token }); }
+app.post('/api/rooms', throttle, (req, res) => {
+  const p = password(req.body.password); const wb = book(); let code;
+  do { code = Array.from({ length: 7 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[crypto.randomInt(31)]).join(''); } while (room(code));
+  const all = rows(wb, 'Rooms'); all.push({ room_code: code, password_hash: bcrypt.hashSync(p, 12), room_name: String(req.body.roomName || 'Home KTV').slice(0,80), active: true });
+  wb.Sheets.Rooms = XLSX.utils.json_to_sheet(all); save(wb); loginResponse(req, res, code);
+});
+app.post('/api/login', throttle, (req, res) => {
+  const code = typeof req.body.roomCode === 'string' ? req.body.roomCode.trim().toUpperCase() : '';
+  const p = password(req.body.password); const r = /^[A-Z0-9]{7}$/.test(code) ? room(code) : null;
+  if (!r || !bcrypt.compareSync(p, String(r.password_hash))) fail('房間碼或密碼錯誤', 401);
+  loginResponse(req, res, code);
+});
+app.post('/api/logout', auth, (req, res) => { revoke(req.credential); req.session = null; res.json({ ok: true }); });
+app.post('/api/player', auth, controller, throttle, (req, res) => { res.json({ roomCode: req.identity.roomCode, roomToken: issue(req.identity.roomCode, 'player', req.credential) }); });
+app.get('/api/songs', auth, (req, res) => { res.json({ songs: rows(book(), 'Songs').map(s => ({ song_id: s.song_id, title: s.title, artist: s.artist, youtube_url: s.youtube_url, category: s.category, language: s.language })) }); });
+app.get('/api/queue', auth, (req, res) => res.json({ queue: queues.get(req.identity.roomCode) || [] }));
+app.post('/api/queue', auth, controller, (req, res) => {
+  const id = videoId(req.body.youtubeUrl); if (!id) fail('無效 YouTube 網址');
+  const code = req.identity.roomCode; const q = queues.get(code) || [];
+  if (q.length >= 200) fail('隊列已滿', 409);
+  if (q.some(s => s.videoId === id)) fail('呢首歌已經喺隊列', 409);
+  const song = { id: crypto.randomUUID(), videoId: id, youtubeUrl: 'https://www.youtube.com/watch?v=' + id, title: String(req.body.title || 'YouTube 歌曲').slice(0,200), singer: String(req.body.singer || 'Guest').slice(0,80) };
+  const wb = book(); const log = rows(wb, 'QueueLog'); log.push({ timestamp: new Date().toISOString(), room_code: code, singer: song.singer, title: song.title, youtube_url: song.youtubeUrl }); wb.Sheets.QueueLog = XLSX.utils.json_to_sheet(log); save(wb);
+  q.push(song); queues.set(code, q); io.to(code).emit('queueUpdated', q); res.json({ queue: q });
+});
+app.get('/api/lyrics/:id', auth, (req, res) => {
+  if (!/^[\w-]{11}$/.test(req.params.id)) fail('無效影片ID');
+  const s = rows(book(), 'Songs').find(s => videoId(String(s.youtube_url)) === req.params.id);
+  if (!s?.lrc_file) return res.json({ lyrics: [] });
+  const root = fs.realpathSync(LYRICS); const candidate = path.resolve(root, String(s.lrc_file));
+  function inside(file) { const rel = path.relative(root, file); return rel !== '' && rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel); }
+  if (!inside(candidate) || path.extname(candidate).toLowerCase() !== '.lrc') fail('無效歌詞檔');
+  if (!fs.existsSync(candidate)) return res.json({ lyrics: [] });
+  const real = fs.realpathSync(candidate); if (!inside(real) || !fs.statSync(real).isFile() || fs.statSync(real).size > 1048576) fail('無效歌詞檔');
+  const lyrics = [];
+  for (const line of fs.readFileSync(real, 'utf8').split(/\r?\n/)) for (const m of line.matchAll(/\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]/g)) {
+    if (+m[2] >= 60) continue;
+    lyrics.push({ time: +m[1] * 60 + +m[2] + (m[3] ? Number('0.' + m[3]) : 0), text: line.replace(/\[[^\]]*\]/g, '').trim() });
   }
-  const wb = readWorkbook();
-  ensureSheet(wb, 'Rooms', ['room_code', 'password_hash', 'room_name', 'active']);
-  const code = randomRoomCode();
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets.Rooms, { header: 1 });
-  rows.push([code, bcrypt.hashSync(String(password), 12), roomName || 'Home KTV', 'TRUE']);
-  wb.Sheets.Rooms = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.writeFile(wb, EXCEL_PATH);
-  const token = issueRoomToken(code);
-  res.json({ ok: true, roomCode: code, roomToken: token });
+  res.json({ lyrics: lyrics.sort((a,b) => a.time - b.time) });
 });
-
-app.post('/api/login', (req, res) => {
-  const { roomCode, password } = req.body || {};
-  if (!roomCode || !password) return res.status(400).json({ error: '請輸入房間碼同密碼' });
-  const room = getRoom(roomCode);
-  if (!room || !room.password_hash) return res.status(401).json({ error: '房間碼或密碼錯誤' });
-  const ok = bcrypt.compareSync(password, String(room.password_hash));
-  if (!ok) return res.status(401).json({ error: '房間碼或密碼錯誤' });
-  const code = String(room.room_code).trim().toUpperCase();
-  req.session.roomCode = code;
-  const token = issueRoomToken(code);
-  res.json({ ok: true, roomCode: code, roomToken: token, roomName: room.room_name || code });
-});
-
-app.post('/api/logout', (req, res) => {
-  const roomCode = req.session && req.session.roomCode;
-  if (roomCode) roomTokens.delete(roomCode);
-  req.session = null;
-  res.json({ ok: true });
-});
-
-app.get('/api/songs', requireRoom, (req, res) => {
-  res.json({ roomCode: req.roomCode, songs: getSongs() });
-});
-
-app.get('/api/queue', requireRoom, (req, res) => {
-  res.json({ queue: queues.get(req.roomCode) || [] });
-});
-
-app.post('/api/queue', requireRoom, (req, res) => {
-  const { youtubeUrl, singer, title } = req.body || {};
-  const videoId = extractVideoId(youtubeUrl);
-  if (!videoId) return res.status(400).json({ error: '請貼上有效 YouTube 連結' });
-
-  const queue = queues.get(req.roomCode) || [];
-  if (queue.some(song => song.videoId === videoId)) {
-    return res.status(409).json({ error: '呢首歌已經喺隊列入面' });
-  }
-
-  const song = {
-    videoId,
-    youtubeUrl,
-    title: title || 'YouTube 歌曲',
-    singer: singer || 'Guest',
-    addedAt: Date.now()
-  };
-  queue.push(song);
-  queues.set(req.roomCode, queue);
-  appendQueueLog(req.roomCode, song.singer, song);
-  io.to(req.roomCode).emit('queueUpdated', queue);
-  res.json({ ok: true, queue });
-});
-
-app.get('/api/lyrics/:videoId', requireRoom, (req, res) => {
-  const songs = getSongs();
-  const song = songs.find(s => String(s.youtube_url).includes(req.params.videoId));
-  if (!song || !song.lrc_file) return res.json({ title: '', lyrics: [] });
-
-  const lrcPath = path.join(LYRICS_DIR, String(song.lrc_file));
-  if (!fs.existsSync(lrcPath)) return res.json({ title: song.title, lyrics: [] });
-
-  const content = fs.readFileSync(lrcPath, 'utf8');
-  res.json({ title: song.title, lyrics: parseLrc(content) });
-});
-
 io.use((socket, next) => {
-  const { roomCode, roomToken } = socket.handshake.auth || {};
-  if (!roomCode || !roomToken || !isValidRoomToken(roomCode, roomToken)) {
-    return next(new Error('房間驗證失敗'));
-  }
-  socket.roomCode = roomCode;
-  next();
+  try { const a = socket.handshake.auth || {}; if (typeof a.roomToken !== 'string' || !/^[a-f0-9]{64}$/.test(a.roomToken)) throw Error('驗證失敗'); const hash = key(a.roomToken); const s = valid(hash); if (!s || s.roomCode !== a.roomCode) throw Error('驗證失敗'); socket.data.hash = hash; socket.data.room = s.roomCode; next(); } catch { next(new Error('登入已失效')); }
 });
-
 io.on('connection', socket => {
-  const roomCode = socket.roomCode;
-  socket.join(roomCode);
-  socket.emit('queueUpdated', queues.get(roomCode) || []);
-
-  function advance() {
-    const queue = queues.get(roomCode) || [];
-    queue.shift();
-    queues.set(roomCode, queue);
-    io.to(roomCode).emit('queueUpdated', queue);
+  const code = socket.data.room; socket.join(code);
+  socket.use((packet, next) => { try { if (!valid(socket.data.hash)) { socket.disconnect(true); return next(new Error('登入已失效')); } next(); } catch { socket.disconnect(true); } });
+  const s = valid(socket.data.hash);
+  if (s?.role === 'player' && !leaders.has(code)) leaders.set(code, socket.id);
+  socket.emit('queueUpdated', queues.get(code) || []);
+  socket.on('claimPlayer', (_, ack) => { const s = valid(socket.data.hash); if (s?.role === 'player' && !leaders.has(code)) leaders.set(code, socket.id); if (typeof ack === 'function') ack({ leader: leaders.get(code) === socket.id }); });
+  function advance(data, ack) {
+    const s = valid(socket.data.hash); const q = queues.get(code) || [];
+    if (s?.role !== 'player' || leaders.get(code) !== socket.id || !data || typeof data.currentItemId !== 'string' || q[0]?.id !== data.currentItemId) { if (typeof ack === 'function') ack({ ok: false }); return; }
+    q.shift(); io.to(code).emit('queueUpdated', q); if (typeof ack === 'function') ack({ ok: true });
   }
-
-  socket.on('nextSong', () => advance());
-  socket.on('skipSong', () => advance());
+  socket.on('nextSong', advance); socket.on('skipSong', advance);
+  socket.on('disconnect', () => { if (leaders.get(code) === socket.id) leaders.delete(code); });
 });
-
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`goooooook 已啟動：http://localhost:${PORT}`);
-  console.log(`手機請用同一 Wi-Fi 開：http://<host 機 LAN IP>:${PORT}`);
-  console.log('Excel、歌詞與密碼資料只存在於這部 host 機。');
-});
+const cleanup = setInterval(() => {
+  for (const [hash, s] of sessions) if (s.expires <= Date.now()) sessions.delete(hash);
+  for (const [ip,a] of attempts) if (a.until <= Date.now()) attempts.delete(ip);
+  for (const socket of io.sockets.sockets.values()) { try { if (!valid(socket.data.hash)) socket.disconnect(true); } catch { socket.disconnect(true); } }
+}, 30000);
+cleanup.unref();
+app.use((err, req, res, next) => { console.error(err.message); res.status(err.status || 500).json({ error: err.status ? err.message : '讀寫失敗，請關閉正在編輯的 Excel 或檢查 host 記錄' }); });
+server.listen(Number(process.env.PORT || 3000), process.env.HOST || '0.0.0.0', () => console.log('goooooook host ready; sessions and queue reset on restart'));
