@@ -7,7 +7,7 @@
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <title>goooooook 下載</title>
 <style>
-body{margin:0;padding:24px;background:#0f0f13;color:#eee;font:16px system-ui;max-width:820px;margin:auto}h1{font-size:30px}a{color:#e91e63}.card{background:#191922;border:1px solid #2a2a35;border-radius:14px;padding:18px;margin:16px 0}.button{display:inline-block;margin-top:10px;padding:12px 18px;background:#e91e63;color:#fff;border-radius:8px;text-decoration:none}small{color:#aaa;display:block;margin-top:8px}code{background:#0b0b10;padding:4px 8px;border-radius:6px}
+body{margin:0;padding:24px;background:#0b0b10;color:#f4f4f6;font:16px/1.6 system-ui;max-width:820px;margin:auto}h1{font-size:30px}a{color:#e91e63}.card{background:#16161f;border:1px solid #2c2c3a;border-radius:16px;padding:18px;margin:16px 0}.button{display:inline-block;margin-top:10px;padding:13px 18px;background:#e91e63;color:#fff;border-radius:12px;text-decoration:none;font-weight:700}small{color:#a7a7b8;display:block;margin-top:8px}code{background:#0e0e15;padding:4px 8px;border-radius:6px}
 </style>
 </head>
 <body>
@@ -17,24 +17,20 @@ body{margin:0;padding:24px;background:#0f0f13;color:#eee;font:16px system-ui;max
 <h2>最新版本</h2>
 <p>開啟 GitHub Releases 下載對應平台檔案。</p>
 <a class="button" href="https://github.com/kylec1114/goooooook/releases/latest" target="_blank" rel="noopener noreferrer">前往最新 Release</a>
-<small>如果未見到安裝檔，表示尚未發佈 Release；請先等待打包 workflow 完成並發佈。</small>
+<small>如果未見到安裝檔，表示尚未發佈 Release。</small>
 </div>
 <div class="card">
-<h2>Windows</h2>
-<p>下載 <code>.exe</code>（NSIS installer），安裝後開啟 goooooook Host。</p>
+<h2>想即刻攞 APK？</h2>
+<p>而家仍未發佈正式 Release，所以「最新 Release」暫時未必有 APK。</p>
+<p>你可以去 <strong>Actions → Android release APK</strong>，選 <code>fix/core-auth-playback</code> 後按 <strong>Run workflow</strong>。完成後喺該 run 底部下載：</p>
+<p><code>goooooook-android-release</code>＝正式簽名 APK<br><code>goooooook-android-debug</code>＝內部測試 APK</p>
+<a class="button" href="https://github.com/kylec1114/goooooook/actions/workflows/android-release-apk.yml" target="_blank" rel="noopener noreferrer">開啟 Android 打包</a>
+<small>GitHub Actions 需要帳戶 Billing／額度可用；debug APK 只適合內部測試。</small>
 </div>
 <div class="card">
-<h2>macOS</h2>
-<p>下載 <code>.dmg</code>，拖入 Applications。未簽名版本可能需要在系統設定允許開啟。</p>
-</div>
-<div class="card">
-<h2>Linux</h2>
-<p>下載 <code>.AppImage</code>，設定執行權限後開啟。</p>
-</div>
-<div class="card">
-<h2>Android</h2>
-<p>下載 <code>.apk</code>。正式版應為 signed release APK；debug APK 只供內部測試。</p>
-<small>安裝時 Android 可能要求允許來自瀏覽器的安裝。</small>
+<h2>桌面版</h2>
+<p>Windows：<code>.exe</code>；macOS：<code>.dmg</code>；Linux：<code>.AppImage</code>。</p>
+<a class="button" href="https://github.com/kylec1114/goooooook/actions/workflows/desktop-packages.yml" target="_blank" rel="noopener noreferrer">開啟桌面打包</a>
 </div>
 <div class="card">
 <h2>安全提醒</h2>
