@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -8,6 +9,7 @@ const cookieSession = require('cookie-session');
 
 const PORT = process.env.PORT || 3000;
 const EXCEL_PATH = path.join(__dirname, 'data', 'goooooook.xlsx');
+const LYRICS_DIR = path.join(__dirname, 'data', 'lyrics');
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-to-a-long-random-string';
 
 const app = express();
@@ -27,6 +29,9 @@ app.use(cookieSession({
 const queues = new Map();
 
 function readWorkbook() {
+  if (!fs.existsSync(EXCEL_PATH)) {
+    throw new Error('找不到 data/goooooook.xlsx。請先執行：npm run setup');
+  }
   return XLSX.readFile(EXCEL_PATH);
 }
 
@@ -34,6 +39,13 @@ function sheetToObjects(wb, sheetName) {
   const sheet = wb.Sheets[sheetName];
   if (!sheet) return [];
   return XLSX.utils.sheet_to_json(sheet, { defval: '' });
+}
+
+function ensureSheet(wb, name, headers) {
+  if (!wb.Sheets[name]) {
+    wb.SheetNames.push(name);
+    wb.Sheets[name] = XLSX.utils.aoa_to_sheet([headers]);
+  }
 }
 
 function getRoom(roomCode) {
@@ -53,7 +65,8 @@ function getSongs() {
     artist: song.artist,
     youtube_url: song.youtube_url,
     category: song.category,
-    language: song.language
+    language: song.language,
+    lrc_file: song.lrc_file
   }));
 }
 
@@ -67,19 +80,38 @@ function extractVideoId(url) {
   }
 }
 
+function randomRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code;
+  do {
+    code = Array.from({ length: 7 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  } while (getRoom(code));
+  return code;
+}
+
 function appendQueueLog(roomCode, singer, song) {
   const wb = readWorkbook();
-  const sheetName = 'QueueLog';
-  if (!wb.Sheets[sheetName]) {
-    wb.SheetNames.push(sheetName);
-    wb.Sheets[sheetName] = XLSX.utils.aoa_to_sheet([
-      ['timestamp', 'room_code', 'singer', 'title', 'youtube_url']
-    ]);
-  }
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1 });
+  ensureSheet(wb, 'QueueLog', ['timestamp', 'room_code', 'singer', 'title', 'youtube_url']);
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets.QueueLog, { header: 1 });
   rows.push([new Date().toISOString(), roomCode, singer || 'Guest', song.title, song.youtube_url]);
-  wb.Sheets[sheetName] = XLSX.utils.aoa_to_sheet(rows);
+  wb.Sheets.QueueLog = XLSX.utils.aoa_to_sheet(rows);
   XLSX.writeFile(wb, EXCEL_PATH);
+}
+
+function parseLrc(content) {
+  const lines = [];
+  for (const raw of content.split(/\r?\n/)) {
+    const matches = [...raw.matchAll(/\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g)];
+    const text = raw.replace(/\[[^\]]*\]/g, '').trim();
+    if (!matches.length || !text) continue;
+    for (const m of matches) {
+      const minutes = parseInt(m[1], 10);
+      const seconds = parseInt(m[2], 10);
+      const fraction = m[3] ? parseFloat('0.' + m[3]) : 0;
+      lines.push({ time: minutes * 60 + seconds + fraction, text });
+    }
+  }
+  return lines.sort((a, b) => a.time - b.time);
 }
 
 function requireRoom(req, res, next) {
@@ -90,6 +122,21 @@ function requireRoom(req, res, next) {
   req.roomCode = roomCode;
   next();
 }
+
+app.post('/api/rooms', (req, res) => {
+  const { password, roomName } = req.body || {};
+  if (!password || String(password).length < 6) {
+    return res.status(400).json({ error: '密碼至少需要 6 個字元' });
+  }
+  const wb = readWorkbook();
+  ensureSheet(wb, 'Rooms', ['room_code', 'password_hash', 'room_name', 'active']);
+  const code = randomRoomCode();
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets.Rooms, { header: 1 });
+  rows.push([code, bcrypt.hashSync(String(password), 12), roomName || 'Home KTV', 'TRUE']);
+  wb.Sheets.Rooms = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.writeFile(wb, EXCEL_PATH);
+  res.json({ ok: true, roomCode: code });
+});
 
 app.post('/api/login', (req, res) => {
   const { roomCode, password } = req.body || {};
@@ -119,7 +166,13 @@ app.post('/api/queue', requireRoom, (req, res) => {
   const { youtubeUrl, singer, title } = req.body || {};
   const videoId = extractVideoId(youtubeUrl);
   if (!videoId) return res.status(400).json({ error: '請貼上有效 YouTube 連結' });
-  const song = { videoId, youtubeUrl, title: title || 'YouTube 歌曲', singer: singer || 'Guest', addedAt: Date.now() };
+  const song = {
+    videoId,
+    youtubeUrl,
+    title: title || 'YouTube 歌曲',
+    singer: singer || 'Guest',
+    addedAt: Date.now()
+  };
   const queue = queues.get(req.roomCode) || [];
   queue.push(song);
   queues.set(req.roomCode, queue);
@@ -128,27 +181,38 @@ app.post('/api/queue', requireRoom, (req, res) => {
   res.json({ ok: true, queue });
 });
 
+app.get('/api/lyrics/:videoId', requireRoom, (req, res) => {
+  const songs = getSongs();
+  const song = songs.find(s => String(s.youtube_url).includes(req.params.videoId));
+  if (!song || !song.lrc_file) return res.json({ title: '', lyrics: [] });
+
+  const lrcPath = path.join(LYRICS_DIR, String(song.lrc_file));
+  if (!fs.existsSync(lrcPath)) return res.json({ title: song.title, lyrics: [] });
+
+  const content = fs.readFileSync(lrcPath, 'utf8');
+  res.json({ title: song.title, lyrics: parseLrc(content) });
+});
+
 io.on('connection', socket => {
   socket.on('joinRoom', roomCode => {
     if (!getRoom(roomCode)) return;
     socket.join(roomCode);
     socket.emit('queueUpdated', queues.get(roomCode) || []);
   });
-  socket.on('nextSong', ({ roomCode }) => {
+
+  function advance(roomCode) {
     const queue = queues.get(roomCode) || [];
     queue.shift();
     queues.set(roomCode, queue);
     io.to(roomCode).emit('queueUpdated', queue);
-  });
-  socket.on('skipSong', ({ roomCode }) => {
-    const queue = queues.get(roomCode) || [];
-    queue.shift();
-    queues.set(roomCode, queue);
-    io.to(roomCode).emit('queueUpdated', queue);
-  });
+  }
+
+  socket.on('nextSong', ({ roomCode }) => advance(roomCode));
+  socket.on('skipSong', ({ roomCode }) => advance(roomCode));
 });
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`goooooook 已啟動：http://localhost:${PORT}`);
-  console.log(`手機請用同一 Wi-Fi 開：http://<你部電腦 LAN IP>:${PORT}`);
+  console.log(`手機請用同一 Wi-Fi 開：http://<host 機 LAN IP>:${PORT}`);
+  console.log('Excel、歌詞與密碼資料只存在於這部 host 機。');
 });

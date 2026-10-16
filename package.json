@@ -1,9 +1,10 @@
 {
   "name": "goooooook",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "main": "server.js",
   "scripts": {
+    "setup": "node create-excel.js",
     "start": "node server.js",
     "hash": "node hash.js"
   },
