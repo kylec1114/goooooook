@@ -1,0 +1,19 @@
+name: TV top toolbar tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/tv-topbar.mjs', 'public/tv-compact.*', 'test/tv-topbar.test.mjs', '.github/workflows/tv-topbar.yml']
+  pull_request:
+    paths: ['public/tv-topbar.mjs', 'public/tv-compact.*', 'test/tv-topbar.test.mjs', '.github/workflows/tv-topbar.yml']
+permissions:
+  contents: read
+jobs:
+  topbar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/tv-topbar.mjs && node --check public/tv-compact.mjs
+      - run: node --test test/tv-topbar.test.mjs test/presentation.test.mjs test/tv-stage.test.mjs test/room-autoplay.test.cjs
