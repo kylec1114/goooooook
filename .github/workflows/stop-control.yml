@@ -1,0 +1,19 @@
+name: Stop at beginning tests
+on:
+  push:
+    branches: [main]
+    paths: ['cloud/stop-*.mjs', 'public/stop-controls.mjs', 'test/stop-control.test.mjs', 'wrangler.toml', '.github/workflows/stop-control.yml']
+  pull_request:
+    paths: ['cloud/stop-*.mjs', 'public/stop-controls.mjs', 'test/stop-control.test.mjs', 'wrangler.toml', '.github/workflows/stop-control.yml']
+permissions:
+  contents: read
+jobs:
+  stop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check cloud/stop-worker.mjs && node --check public/stop-controls.mjs
+      - run: node --test test/stop-control.test.mjs test/youtube-controls.test.cjs test/room-autoplay.test.cjs test/frontend-sync.test.cjs
