@@ -1,22 +1,41 @@
-# Feature progress and integration boundaries
+# YouTube-only unified search progress
 
-This commit contains implementation, not proof of production success.
+This update supersedes the earlier multi-platform package plan. Only YouTube is enabled for music search/playback selection. The @kamkam1_0/music-search dependency is removed; the compatibility adapter remains a local YouTube-only URL checker. Existing room, invitation, guest management, status and playback layers are preserved.
 
-| Feature | Code | Validation still required |
-| --- | --- | --- |
-| Music package | Pinned 5.0.4; URL-classification subpath only | Actual npm installation, bundle and license inspection |
-| Safe YouTube search | Official API, strict search, exact-host validation, rate/budget limits | Worker YOUTUBE_API_KEY and real API tests |
-| Metadata and playlist preview | Implemented with pagination and explicit selection | Browser and real playlist tests |
-| Version/status | Real BUILD_COMMIT plus Worker metadata; null if absent | Check deployed status against Actions commit |
-| Invite QR/copy | Authenticated QR, password-free links, visitor hint | Real browser/room acceptance |
-| Guest reset/revocation | Owner controls, confirmation, generated new guest password | Verify old/new guest sessions on separate browsers |
-| Queue ordering | Uses previously committed pending-only sorting and conflicts | Real concurrent device acceptance |
-| Other providers | Safe URL classification only | Official metadata/search not implemented |
+## One input
 
-Do not call package 5.0.4 the latest: registry latest could not be verified. The reviewed repository declares MPL 2.0, while CDN metadata labels ISC; inspect the installed LICENSE and preserve applicable notices before redistribution. No upstream source is modified. Raw YouTube scraping and stream extraction are disabled by design.
+GET /api/music/unified?input=...&mode=all|mv|ktv&pageToken=...
 
-GitHub Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID. Worker Secret: YOUTUBE_API_KEY. Never expose these in public files or chat. Non-secret options: YOUTUBE_REGION (HK by default), MUSIC_DAILY_REQUEST_LIMIT (80 upstream requests/day by default). BUILD_COMMIT is injected from GITHUB_SHA. CF_VERSION_METADATA is a binding, not a secret.
+Text searches automatically; YouTube video links resolve the original video; playlist links preview playlist items. A watch URL containing both v and list defaults to the video. Bare youtube.com/watch URLs are supported. Other platforms are rejected. Mode adds search terms for text only, not audio conversion for pasted links.
 
-This exact commit message can trigger the updated D1 workflow when the workflow file changes on main. It installs without lifecycle scripts, runs existing/new tests and a real installed-package smoke check, migrates D1, validates the bundle and deploys. These steps can fail; commit success is not deployment success. Existing GitHub Secrets cannot be inspected by this assistant. Missing YOUTUBE_API_KEY disables official search without scraping fallback.
+MV/KTV labels are title-based candidates, never verified vocal/stem information. Results offer inline preview, single queue addition, favorites, and checkbox batch addition. The old search forms are hidden; existing local favorites search moves to the Favorites page. Newer responses replace older searches; abort/timeout and room-switch checks prevent stale search rendering.
 
-Local tests use mocked upstream API responses. No real browser, real D1 or audio acceptance has been completed. SafeSearch is a filter, not a child-safety guarantee. In-memory metadata cache is per isolate and lasts 10 minutes.
+## Sources and secrets
+
+YouTube official API code exists. Actual Worker YOUTUBE_API_KEY configuration could not be read in this session because /api/status retrieval failed. Do not claim it is configured or functional. The status endpoint reports only a configuration boolean, not the key and not a successful API test. No Spotify, Deezer or SoundCloud provider is enabled. The same Cloudflare deploy credentials and existing D1 bindings remain.
+
+## Errors
+
+| Case | Behavior/code |
+| --- | --- |
+| Empty/too long/control characters | 400 INVALID_INPUT or INPUT_TOO_LONG |
+| Invalid format preference | 400 INVALID_MODE |
+| Invalid, HTTP, credentialed or spoofed URL | 400 INVALID_YOUTUBE_URL |
+| Other music platform link | 400 UNSUPPORTED_SOURCE |
+| Page token for a direct video | 400 INVALID_PAGE_TOKEN |
+| Not logged in | 401 LOGIN_REQUIRED |
+| Room expired | 410 ROOM_EXPIRED |
+| Permission denied | 403 FORBIDDEN |
+| Missing YouTube key | 503 SEARCH_NOT_CONFIGURED |
+| API denial/key restriction/quota | UPSTREAM_DENIED; the current upstream adapter does not distinguish all causes |
+| Local rate/daily budget limit | 429 RATE_LIMITED |
+| Video filtered/private/deleted/unavailable | 404 VIDEO_UNAVAILABLE; reason is not inferred beyond returned metadata |
+| No search results/empty playlist | Successful empty result with an explicit message |
+| Network, timeout, non-JSON response | Visible retry/error message, never a fake successful result |
+| Duplicate song/full queue | Existing queue errors, batch reports successful and skipped counts |
+| Room changes mid-request/batch | Ignore old response or stop the batch |
+| Sorting revision conflict | Existing 409 handling and refresh remains |
+
+## Tests and deployment
+
+26 new local unit/middleware tests pass with mocked upstream service; they are not browser, real YouTube API, D1 or audio tests. The existing cloud/music-install.test.mjs script runs the YouTube-only compatibility checks and invokes test/unified-search.test.mjs, so the current D1 workflow will run these checks when manually executed. This update itself does not trigger the path-filtered deployment workflow. Actual npm install/bundle, browser acceptance and production deployment remain pending.

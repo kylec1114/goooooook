@@ -1,5 +1,5 @@
 name = "goooooook"
-main = "cloud/features-worker.mjs"
+main = "cloud/unified-worker.mjs"
 compatibility_date = "2026-10-01"
 
 [assets]

@@ -1,4 +1,3 @@
-import classify from '@kamkam1_0/music-search/src/utils/eval.js';
 import {parseInput} from './music-safety.mjs';
-export const PACKAGE_VERSION='5.0.4';
-export function classifySafe(value){const safe=parseInput(value);const legacy=classify(safe.url);return {...safe,packageHint:legacy?.plateform||null};}
+export const PACKAGE_VERSION=null;
+export function classifySafe(value){const item=parseInput(value);if(item.platform!=='youtube')throw Object.assign(Error('目前只支援 YouTube'),{status:400});return item;}
