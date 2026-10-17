@@ -1,0 +1,20 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import {pickAndroidRelease,assetUrl} from '../public/android-release.mjs';
+const url='https://github.com/kylec1114/goooooook/releases/download/android-test-1-1/goooooook.apk';
+function release(extra={}){return {tag_name:'android-test-1-1',draft:false,prerelease:true,published_at:'2026-10-17T12:00:00Z',assets:[{name:'goooooook.apk',state:'uploaded',size:1024,browser_download_url:url,digest:'sha256:'+'a'.repeat(64)},{name:'goooooook.apk.sha256',state:'uploaded',size:81,browser_download_url:url+'.sha256'}],...extra};}
+test('empty release list does not advertise APK',()=>assert.equal(pickAndroidRelease([]),null));
+test('published Android prerelease is selectable',()=>assert.equal(pickAndroidRelease([release()]).url,url));
+test('draft release is not downloadable',()=>assert.equal(pickAndroidRelease([release({draft:true})]),null));
+test('missing or empty APK is rejected',()=>{assert.equal(pickAndroidRelease([release({assets:[]})]),null);const r=release();r.assets[0].size=0;assert.equal(pickAndroidRelease([r]),null);});
+test('unuploaded APK is rejected',()=>{const r=release();r.assets[0].state='new';assert.equal(pickAndroidRelease([r]),null);});
+test('external or credential-bearing URL is rejected',()=>{assert.equal(assetUrl('https://evil.test/file.apk','goooooook.apk'),null);assert.equal(assetUrl(url+'?token=SECRET','goooooook.apk'),null);});
+test('wrong repository URL is rejected',()=>assert.equal(assetUrl(url.replace('/goooooook/','/other/'),'goooooook.apk'),null));
+test('newest published Android build is selected',()=>{const r=release({tag_name:'android-test-2-1',published_at:'2026-10-17T13:00:00Z'});assert.equal(pickAndroidRelease([release(),r]).tag,'android-test-2-1');});
+test('unrelated Windows release does not hide Android build',()=>assert.equal(pickAndroidRelease([release({tag_name:'windows-test'}),release()]).url,url));
+test('digest and checksum asset are retained',()=>{const r=pickAndroidRelease([release()]);assert.equal(r.sha256,'a'.repeat(64));assert.equal(r.checksum,url+'.sha256');});
+test('malformed API response fails instead of claiming no release',()=>assert.throws(()=>pickAndroidRelease({message:'rate limited'})));
+function page(response={ok:true,json:async()=>[release()]}){const nodes=new Map();const by=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',setAttribute(k,v){this[k]=v;},removeAttribute(k){delete this[k];}});return nodes.get(id);};const c=vm.createContext({document:{getElementById:by},pickAndroidRelease,AbortController,setTimeout,clearTimeout,fetch:async()=>response});vm.runInContext(fs.readFileSync('public/android-download.mjs','utf8').replace(/^import .*;\n/,''),c);return {by,tick:()=>new Promise(setImmediate)};}
+test('download button only enabled after valid published metadata',async()=>{const p=page();await p.tick();assert.equal(p.by('apk').href,url);assert.equal(p.by('apk')['aria-disabled'],undefined);});
+test('empty releases keep download disabled',async()=>{const p=page({ok:true,json:async()=>[]});await p.tick();assert.equal(p.by('apk').href,undefined);assert.equal(p.by('apk')['aria-disabled'],'true');});
+test('GitHub failure is shown as unconfirmed, not unpublished',async()=>{const p=page({ok:false,status:403});await p.tick();assert.equal(p.by('apk').href,undefined);assert.match(p.by('status').textContent,/403/);assert(!p.by('status').textContent.includes('未發布'));});
+test('workflow verifies signed APK and assets before public publication',()=>{const y=fs.readFileSync('.github/workflows/publish-android.yml','utf8');assert(y.indexOf('verify --verbose')<y.indexOf('gh release create'));assert(y.indexOf('gh release upload')<y.indexOf('--draft=false'));assert(y.includes('--draft --prerelease'));assert(y.includes('persist-credentials: false'));});
+test('website page is in deployed public assets and includes Web App entry',()=>{const html=fs.readFileSync('public/download/index.html','utf8');assert(html.includes('href="/studio.html"'));assert(html.includes('id="apk" aria-disabled="true"'));assert(!html.includes('goooooook-Setup.exe'));});
