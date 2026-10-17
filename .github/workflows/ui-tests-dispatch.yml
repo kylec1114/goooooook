@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   test-and-dispatch:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Enable no-key YouTube keyword search and request deployment')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Add YouTube search connection diagnostics and request deployment')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -34,4 +34,4 @@ jobs:
           HEAD_SHA=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
           test "$HEAD_SHA" = "$GITHUB_SHA" || { echo 'main changed; refusing deployment'; exit 1; }
           gh workflow run d1-setup-deploy.yml --repo "$GH_REPO" --ref main
-          echo 'D1 deployment requested. Verify the deployment run separately.'
+          echo 'Diagnostic deployment requested; verify the D1 run separately.'
