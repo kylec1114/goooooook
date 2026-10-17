@@ -1,0 +1,19 @@
+name: Responsive invitation tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/room-invite.*', 'cloud/stop-worker.mjs', 'test/room-invite.test.mjs', '.github/workflows/room-invite.yml']
+  pull_request:
+    paths: ['public/room-invite.*', 'cloud/stop-worker.mjs', 'test/room-invite.test.mjs', '.github/workflows/room-invite.yml']
+permissions:
+  contents: read
+jobs:
+  invitation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/room-invite.mjs && node --check cloud/stop-worker.mjs
+      - run: node --test test/room-invite.test.mjs test/settings-library.test.mjs test/profile-mobile.test.mjs test/playlist-room.test.mjs

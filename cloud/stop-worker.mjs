@@ -15,7 +15,7 @@ export default {
   if(u.pathname==='/api/tv/control')return json({error:'只接受 POST'},405);
   const r=await previous.fetch(req,env,ctx);
   if(r.ok&&['/studio','/studio.html','/room-screen','/room-screen.html'].includes(u.pathname)&&r.headers.get('Content-Type')?.includes('text/html')){
-   const transformed=new HTMLRewriter().on('body',{element(e){e.append('<script type="module" src="/profile-ui.mjs"></script><script type="module" src="/desktop-tv.mjs"></script><script type="module" src="/settings-library.mjs"></script>',{html:true});}}).transform(r);
+   const transformed=new HTMLRewriter().on('body',{element(e){e.append('<script type="module" src="/profile-ui.mjs"></script><script type="module" src="/desktop-tv.mjs"></script><script type="module" src="/room-invite.mjs"></script>',{html:true});}}).transform(r);
    const headers=new Headers(transformed.headers);headers.set('Cache-Control','no-store');headers.delete('Content-Length');
    return new Response(transformed.body,{status:transformed.status,headers});
   }return r;
