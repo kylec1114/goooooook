@@ -1,0 +1,23 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {webcrypto} from 'node:crypto';import fs from 'node:fs';import vm from 'node:vm';import {tvRequest,joinUrl,TV_SQL} from '../cloud/tv-service.mjs';
+if(!globalThis.crypto)globalThis.crypto=webcrypto;
+function setup(role='player',leader=true){const state={role,leader,roomCode:'1234567',queue:[{id:'a'}]},sql=[];let qrData='',changed=1;const previous={fetch:async()=>new Response(JSON.stringify(state))};const env={DB:{prepare(q){const x={q,bind(...a){this.a=a;return this;}};sql.push(x);return x;},batch:async()=>[{meta:{changes:changed}},{meta:{changes:changed}}]}};const qr=()=>({addData:x=>qrData=x,make(){},createSvgTag:()=>'<svg/>'});
+ const run=(action='restart',id='a',origin='https://site.test')=>tvRequest(new Request('https://site.test/api/tv/control',{method:'POST',headers:{Origin:origin,Authorization:'Bearer private-token'}}),env,{},previous,qr,{action,currentItemId:id});
+ const invite=()=>tvRequest(new Request('https://site.test/api/tv/invite-qr'),env,{},previous,qr);
+ return {run,invite,sql,getQr:()=>qrData,noChange:()=>changed=0};}
+test('QR encodes only room join URL, never credentials',async()=>{const t=setup();const r=await t.invite();assert.equal(r.status,200);assert.equal(t.getQr(),'https://site.test/studio.html?room=1234567');assert(!t.getQr().includes('token'));assert.match(r.headers.get('content-type'),/svg/);});
+test('invalid room code cannot become QR content',()=>assert.throws(()=>joinUrl('https://site.test','x&token=bad')));
+test('non-TV cannot fetch TV QR',async()=>assert.equal((await setup('guest').invite()).status,403));
+test('active TV can restart current item',async()=>{const t=setup();assert.equal((await t.run()).status,200);assert.equal(t.sql[0].q,TV_SQL);assert.equal(t.sql[0].a[0],0);assert.equal(t.sql[0].a[1],1);assert.equal(t.sql[0].a[3],'a');});
+test('pause updates desired paused state without restarting',async()=>{const t=setup();await t.run('pause');assert.equal(t.sql[0].a[0],1);assert.equal(t.sql[0].a[1],0);});
+test('play clears pause without restarting',async()=>{const t=setup();await t.run('play');assert.equal(t.sql[0].a[0],0);assert.equal(t.sql[0].a[1],0);});
+test('standby TV cannot control',async()=>assert.equal((await setup('player',false).run()).status,403));
+test('guest cannot use TV control route',async()=>assert.equal((await setup('guest').run()).status,403));
+test('old song id is rejected',async()=>assert.equal((await setup().run('restart','old')).status,409));
+test('lease or queue change during request is rejected',async()=>{const t=setup();t.noChange();assert.equal((await t.run()).status,409);});
+test('cross-origin request is rejected',async()=>assert.equal((await setup().run('restart','a','https://other.test')).status,403));
+test('TV route cannot perform arbitrary owner commands',async()=>assert.equal((await setup().run('delete-room')).status,400));
+const source=fs.readFileSync('public/tv-stage.mjs','utf8').replace(/^import .*;\n/,'');
+function ui(){let captures=0;const nodes=new Map(),listeners=new Map();const element=()=>({children:[],hidden:false,disabled:false,dataset:{},textContent:'',classList:{add(){},remove(){}},append(...c){this.children.push(...c);},after(){},insertBefore(c){this.children.push(c);},setAttribute(){},async requestFullscreen(){captures++;}});const stage=element(),video=element();video.parentElement=stage;for(const id of ['full','clean','start'])nodes.set(id,element());const c=vm.createContext({document:{getElementById:id=>nodes.get(id)||null,querySelector:()=>video,createElement:element,head:element(),body:element(),addEventListener:(n,fn)=>listeners.set(n,fn)},matchMedia:()=>({matches:false}),render(){},addEventListener(){},state:null,ready:false,leader:false,epoch:1,URL,fetch:async()=>{throw Error('unavailable');}});c.window=c;c.player={setOption:(...args)=>c.caption=args};vm.runInContext(source,c);return {c,stage,nodes,listeners,captures:()=>captures};}
+test('fullscreen targets existing container without moving YouTube iframe',async()=>{const t=ui();await t.nodes.get('full').onclick();assert.equal(t.stage.id,'tv-stage');assert.equal(t.captures(),1);});
+test('caption hook uses largest supported size',()=>{const t=ui();assert.equal(t.c.caption[0],'captions');assert.equal(t.c.caption[1],'fontSize');assert.equal(t.c.caption[2],3);});
+test('next song and room information update through real render wrapper',()=>{const t=ui();t.c.render({roomCode:'1234567',leader:true,queue:[{id:'a'},{title:'Next Song',singer:'Guest'}]});const header=t.stage.children[0];assert.match(header.children[0].children[0].textContent,/1234567/);assert.match(header.children[0].children[1].textContent,/Next Song/);});

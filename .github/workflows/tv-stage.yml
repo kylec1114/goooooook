@@ -1,0 +1,20 @@
+name: TV fullscreen room tests
+on:
+  push:
+    branches: [main]
+    paths: ['cloud/tv-service.mjs', 'cloud/stop-worker.mjs', 'public/tv-stage.*', 'test/tv-stage.test.mjs', '.github/workflows/tv-stage.yml']
+  pull_request:
+    paths: ['cloud/tv-service.mjs', 'cloud/stop-worker.mjs', 'public/tv-stage.*', 'test/tv-stage.test.mjs', '.github/workflows/tv-stage.yml']
+permissions:
+  contents: read
+jobs:
+  tv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --prefix cloud --ignore-scripts --no-audit --no-fund
+      - run: node --check cloud/stop-worker.mjs && node --check public/tv-stage.mjs
+      - run: node --test test/tv-stage.test.mjs test/stop-control.test.mjs test/youtube-controls.test.cjs test/room-autoplay.test.cjs test/frontend-sync.test.cjs
