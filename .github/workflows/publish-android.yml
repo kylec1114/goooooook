@@ -86,13 +86,13 @@ jobs:
           test -n "$SIGNER"
           "$SIGNER" verify --verbose "$APK"
           mkdir -p dist-apk
-          cp "$APK" dist-apk/goooooook.apk
+          cp "$APK" dist-apk/goooooork.apk
           cd dist-apk
-          sha256sum goooooook.apk > goooooook.apk.sha256
-          sha256sum --check goooooook.apk.sha256
+          sha256sum goooooork.apk > goooooork.apk.sha256
+          sha256sum --check goooooork.apk.sha256
       - uses: actions/upload-artifact@v5
         with:
-          name: goooooook-android-test
+          name: goooooork-android-test
           path: dist-apk/*
           if-no-files-found: error
           retention-days: 30
