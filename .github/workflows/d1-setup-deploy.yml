@@ -1,6 +1,9 @@
 name: D1 Setup and Deploy Web
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/d1-setup-deploy.yml']
 permissions:
   contents: read
 concurrency:
@@ -8,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Integrate safe music search and room tools; deploy reviewed build')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -23,23 +27,24 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN" || { echo '::error::Missing CLOUDFLARE_API_TOKEN'; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo '::error::Missing CLOUDFLARE_ACCOUNT_ID'; exit 1; }
-      - name: Install isolated Worker dependencies
+      - name: Install Worker dependencies without lifecycle scripts
         run: npm install --prefix cloud --ignore-scripts --no-audit --no-fund
       - name: Install Wrangler 4
         run: |
           npm install --prefix "$RUNNER_TEMP/cloudflare-cli" --no-audit --no-fund wrangler@4
           echo "$RUNNER_TEMP/cloudflare-cli/node_modules/.bin" >> "$GITHUB_PATH"
-      - name: Check JavaScript syntax
+      - name: Syntax and existing permission tests
         run: |
-          node --check cloud/worker.mjs
-          node --check public/remote.js
-      - name: Test API permission and expiry checks
-        run: node cloud/permissions.test.mjs
+          set -euo pipefail
+          for file in cloud/*.mjs public/*.mjs extension/*.js; do node --check "$file"; done
+          node cloud/permissions.test.mjs
+          node --test test/frontend-sync.test.cjs test/room-protocol.test.mjs test/room-worker.test.mjs test/music-features.test.mjs
+          node cloud/music-install.test.mjs
       - name: Initialize original tables
         run: wrangler d1 execute goooooook --remote --file=schema.sql --yes
-      - name: Add room expiry and permissions tables
+      - name: Add room expiry, permissions and telemetry tables
         run: wrangler d1 execute goooooook --remote --file=cloud/migration.sql --yes
       - name: Validate Worker bundle
         run: wrangler deploy --dry-run
-      - name: Deploy website and minute cleanup trigger
-        run: wrangler deploy
+      - name: Deploy with actual GitHub commit
+        run: wrangler deploy --var "BUILD_COMMIT:$GITHUB_SHA"
