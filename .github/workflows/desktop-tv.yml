@@ -1,0 +1,19 @@
+name: Desktop TV launch tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/desktop-tv.*', 'public/tv-launch.mjs', 'cloud/stop-worker.mjs', 'test/desktop-tv.test.mjs', '.github/workflows/desktop-tv.yml']
+  pull_request:
+    paths: ['public/desktop-tv.*', 'public/tv-launch.mjs', 'cloud/stop-worker.mjs', 'test/desktop-tv.test.mjs', '.github/workflows/desktop-tv.yml']
+permissions:
+  contents: read
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/desktop-tv.mjs && node --check cloud/stop-worker.mjs
+      - run: node --test test/desktop-tv.test.mjs test/tv-stage.test.mjs test/stop-control.test.mjs test/profile-mobile.test.mjs test/search-clean.test.mjs test/playlist-room.test.mjs test/youtube-controls.test.cjs
