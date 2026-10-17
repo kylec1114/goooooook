@@ -1,0 +1,19 @@
+name: Playback and mobile regression tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/room-upgrade.mjs', 'public/room-upgrade.css', 'test/room-autoplay.test.cjs', '.github/workflows/playback-tests.yml']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/room-upgrade.mjs
+      - run: node --test test/room-autoplay.test.cjs test/frontend-sync.test.cjs

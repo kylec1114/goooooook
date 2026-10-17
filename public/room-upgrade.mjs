@@ -7,28 +7,61 @@ function nextText(q){return q[1]?'下一首：'+q[1].title+' · '+(q[1].singer||
 if(by('roomNav')){
  const originalView=window.view,originalSync=window.syncNav,originalUpdate=window.update,originalApi=window.api;let latest=null,firstView=true;
  const wanted=new URLSearchParams(location.search).get('view');
- window.syncNav=function(){originalSync();document.querySelectorAll('[data-view="join"],[data-view="create"]').forEach(b=>b.hidden=verified);const home=document.querySelector('header [data-view="home"]');if(home)home.textContent=verified?'返回房間':'首頁';};
+ const mobile=matchMedia('(max-width: 760px), (pointer: coarse)');
+ function mobileRemote(){const b=by('tvLink');if(!b)return;b.hidden=mobile.matches;b.disabled=mobile.matches||session?.role!=='owner';b.onclick=()=>{if(mobile.matches)return note('手機只提供點歌及遙控；請在電視電腦開啟播放端。');try{openScreen(true);}catch(e){note(e.message);}};}
+ mobile.addEventListener('change',mobileRemote);mobileRemote();
+ window.syncNav=function(){originalSync();document.querySelectorAll('[data-view="join"],[data-view="create"]').forEach(b=>b.hidden=verified);const home=document.querySelector('header [data-view="home"]');if(home)home.textContent=verified?'返回房間':'首頁';mobileRemote();};
  window.view=function(v){if(verified&&['home','create','join'].includes(v)){if(v!=='home')note('請先退出目前房間，再建立或加入另一間');v='remote';}return originalView(v);};
  for(const id of ['createForm','joinForm'])by(id).addEventListener('submit',e=>{if(verified){e.preventDefault();e.stopImmediatePropagation();note('請先退出目前房間');}},true);
- by('remoteLink').hidden=true;by('remote').querySelector('h2').textContent='房間遙控';
+ by('remoteLink').hidden=true;by('remote').querySelector('h2').textContent='房間遙控 📱';
  const info=document.createElement('p');info.className='sync-info';info.setAttribute('role','status');const next=document.createElement('p');next.id='next-info';const controls=document.createElement('div');controls.className='remote-controls';const box=by('remote').querySelector('.card');box.append(info,next,controls);
  for(const [action,label] of [['play','▶ 播放'],['pause','Ⅱ 暫停'],['restart','↻ 重唱'],['next','下一首 ▷']]){const b=document.createElement('button');b.textContent=label;b.dataset.action=action;b.onclick=async()=>{b.disabled=true;try{requireRoom();const d=await api('/api/control',{action,currentItemId:latest?.queue[0]?.id});window.update(d);}catch(e){note(e.message);}finally{b.disabled=session?.role!=='owner';}};controls.append(b);}
  window.api=async function(...args){const d=await originalApi(...args);if(args[0]==='/api/control')pendingRevision=d.sync?.commandRevision||0;return d;};
- window.update=function(d){originalUpdate(d);latest=d;next.textContent=nextText(d.queue);const sync=d.sync,observed=sync?.observed;info.textContent=!sync?.fresh?'TV 未回報／已離線；控制尚未確認':observed?.blocked?'TV 等待本機按一下允許播放':observed?.errorCode!==null&&observed?.errorCode!==undefined?'TV 播放錯誤 '+observed.errorCode:'TV '+(observed?.playerState===1?'正在播放':observed?.playerState===2?'已暫停':'載入中')+' · '+Math.floor(observed?.currentTime||0)+' 秒';if(pendingRevision)info.textContent+=' · '+(sync?.fresh&&sync.appliedRevision>=pendingRevision?'指令已由 TV 確認':'等待 TV 確認指令');controls.querySelectorAll('button').forEach(b=>b.disabled=d.role!=='owner'||!d.queue.length);
+ window.update=function(d){originalUpdate(d);latest=d;mobileRemote();next.textContent=nextText(d.queue);const sync=d.sync,observed=sync?.observed;info.textContent=!sync?.fresh?'TV 未回報／已離線；控制尚未確認':observed?.blocked?'TV 等待本機按一下允許播放':observed?.errorCode!==null&&observed?.errorCode!==undefined?'TV 播放錯誤 '+observed.errorCode:'TV '+(observed?.playerState===1?'正在播放':observed?.playerState===2?'已暫停':'載入中')+' · '+Math.floor(observed?.currentTime||0)+' 秒';if(pendingRevision)info.textContent+=' · '+(sync?.fresh&&sync.appliedRevision>=pendingRevision?'指令已由 TV 確認':'等待 TV 確認指令');controls.querySelectorAll('button').forEach(b=>b.disabled=d.role!=='owner'||!d.queue.length);
  const rows=[...by('queueList').children];d.queue.forEach((s,i)=>{if(i===0||d.role!=='owner')return;const actions=document.createElement('div');actions.className='queue-actions';for(const [text,target] of [['設為下一首',1],['上移',i-1],['下移',i+1]]){const b=document.createElement('button');b.textContent=text;b.disabled=target<1||target>=d.queue.length||target===i;b.onclick=async()=>{b.disabled=true;try{const ids=movePending(d.queue,s.id,target);window.update(await api('/api/queue/reorder',{ids,revision:d.queueRevision}));}catch(e){note(e.message);await refresh().catch(()=>{});}};actions.append(b);}rows[i]?.append(actions);});
  if(firstView&&verified){firstView=false;if(roomViews.has(wanted))setTimeout(()=>window.view(wanted),0);}};
  vocalPanel(by('vocal'));window.syncNav();if(verified)refresh().catch(e=>note(e.message));
+}else if(by('player')&&matchMedia('(max-width: 760px), (pointer: coarse)').matches){
+ location.replace('/studio.html?view=remote');
 }else if(by('player')){
- let authorized=false,blocked=false,errorCode=null,confirmedRestart=0,readyHook=false;
- const originalApi=window.api,originalRender=window.render;const next=document.createElement('p');next.id='next-info';by('connection').after(next);
- const authorize=document.createElement('button');authorize.id='authorize-player';authorize.className='primary chrome';authorize.textContent='按一下，允許此 TV 播放聲音';by('status').after(authorize);
- const explain=e=>{errorCode=e.data;const labels={2:'影片網址不正確',5:'HTML5 播放錯誤，請重試',100:'影片不存在或已移除',101:'影片不允許嵌入，請換另一個版本',150:'影片不允許嵌入，請換另一個版本',153:'播放器缺少來源識別，請檢查 referrer／部署'};note(labels[e.data]||'YouTube 錯誤 '+e.data);};window.goKtvError=explain;window.goKtvBlocked=()=>{blocked=true;authorize.hidden=false;note('請在 TV 本機按一下允許播放；手機指令不能代替此授權');};window.goKtvCaptions=()=>{try{player.setOption('captions','fontSize',0);}catch{}};
+ let blocked=false,errorCode=null,confirmedRestart=0,hookedPlayer=null,playedItem=null,endedItem=null;
+ const originalApi=window.api,originalRender=window.render;
+ const next=document.createElement('p');next.id='next-info';by('connection').after(next);
+ const authorize=document.createElement('button');authorize.id='authorize-player';authorize.hidden=true;authorize.className='primary chrome';authorize.textContent='按一下，允許此 TV 播放聲音';by('status').after(authorize);
+ const blockedText='瀏覽器阻擋自動播放；請在 TV 本機按一下允許播放。';
+ window.goKtvError=e=>{errorCode=e.data;const labels={2:'影片網址不正確',5:'HTML5 播放錯誤，請重試',100:'影片不存在或已移除',101:'影片不允許嵌入，請換另一個版本',150:'影片不允許嵌入，請換另一個版本',153:'播放器缺少來源識別，請檢查 referrer／部署'};note(labels[e.data]||'YouTube 錯誤 '+e.data);};
+ window.goKtvBlocked=()=>{blocked=true;authorize.hidden=false;note(blockedText);};
+ window.goKtvCaptions=()=>{try{player.setOption('captions','fontSize',0);}catch{}};
+ function sameVideo(){return player.getVideoData()?.video_id===state?.queue?.[0]?.videoId;}
+ window.goKtvStateChange=async e=>{
+  if(!ready||!player||e.target&&e.target!==player)return;
+  const song=state?.queue?.[0];
+  if(e.data===1){seen=null;if(!leader||state?.paused){player.pauseVideo();return;}if(song&&current===song.id&&sameVideo()){playedItem=current;blocked=false;authorize.hidden=true;note('');}return;}
+  if(e.data!==0||player.getPlayerState()!==0||!leader||state?.paused||!song||current!==song.id||playedItem!==song.id||!sameVideo()||endedItem===song.id||advancing)return;
+  const itemId=song.id,sessionEpoch=epoch;endedItem=itemId;advancing=true;
+  try{const d=await api('/api/queue/next',{currentItemId:itemId});if(epoch===sessionEpoch&&active&&tvMode)window.apply(d);}
+  catch(e){if(epoch===sessionEpoch)note('自動下一首未確認：'+e.message+'；請重試下一首。');}
+  finally{advancing=false;}
+ };
+ function attach(){if(!ready||!player||hookedPlayer===player)return;hookedPlayer=player;playedItem=null;endedItem=null;blocked=false;seen=null;authorize.hidden=true;player.addEventListener('onError','goKtvError');player.addEventListener('onAutoplayBlocked','goKtvBlocked');player.addEventListener('onApiChange','goKtvCaptions');player.addEventListener('onStateChange','goKtvStateChange');window.goKtvCaptions();}
  function report(){if(!ready)return null;try{const id=player.getVideoData()?.video_id||null;if(restart!==null&&player.getCurrentTime()<6)confirmedRestart=restart;const r={itemId:current,videoId:id&&/^[\w-]{11}$/.test(id)?id:null,playerState:player.getPlayerState(),currentTime:Math.max(0,player.getCurrentTime()||0),duration:Math.max(0,player.getDuration()||0),volume:player.getVolume(),blocked,errorCode,restartRevision:confirmedRestart,appliedRevision:0};if(!current)r.videoId=null;if(state&&matchesTarget(r,state))r.appliedRevision=state.sync?.commandRevision||0;return r;}catch{return null;}}
  window.api=async function(path,data){if(path==='/api/player/heartbeat')data={...data,report:report()};return originalApi(path,data);};
  window.render=function(d){originalRender(d);next.textContent=nextText(d.queue);};
- window.apply=function(d){window.render(d);leader=d.leader===true;by('start').disabled=by('next').disabled=!leader;if(!ready)return;if(!leader){player.pauseVideo();return;}player.setVolume(d.volume);const song=d.queue[0];if(!song){player.stopVideo();current=null;return;}if(current!==song.id){current=song.id;seen=null;errorCode=null;blocked=false;if(authorized)player.loadVideoById(song.videoId);else player.cueVideoById(song.videoId);}if(restart!==d.restartRevision){if(restart!==null&&d.restartItem===song.id)player.seekTo(0,true);restart=d.restartRevision;}if(d.paused)player.pauseVideo();else if(authorized&&[2,5].includes(player.getPlayerState()))player.playVideo();if(player.getPlayerState()===1){blocked=false;authorize.hidden=true;}};
- const start=()=>{if(!ready||!leader)return note('等待主電視播放權');if(state?.paused)return note('房間目前暫停，請由房主按播放');authorized=true;blocked=false;player.playVideo();};authorize.onclick=start;by('start').onclick=start;
+ window.apply=function(d){
+  window.render(d);leader=d.leader===true;by('start').disabled=by('next').disabled=!leader;if(!ready)return;attach();
+  if(!leader){playedItem=null;seen=null;player.pauseVideo();return;}
+  player.setVolume(d.volume);const song=d.queue[0];
+  if(!song){current=null;playedItem=null;endedItem=null;seen=null;errorCode=null;authorize.hidden=true;player.stopVideo();return;}
+  let loaded=false;
+  if(current!==song.id){current=song.id;seen=null;playedItem=null;endedItem=null;errorCode=null;if(d.paused||blocked)player.cueVideoById(song.videoId);else{loaded=true;player.loadVideoById(song.videoId);}}
+  if(restart!==d.restartRevision){if(restart!==null&&d.restartItem===song.id){endedItem=null;player.seekTo(0,true);}restart=d.restartRevision;}
+  if(d.paused)player.pauseVideo();else if(!loaded&&!blocked&&errorCode===null&&[2,5,-1].includes(player.getPlayerState()))player.playVideo();
+  if(blocked){authorize.hidden=false;note(blockedText);}
+ };
+ const start=()=>{if(!ready||!leader)return note('等待主電視播放權');if(state?.paused)return note('房間目前暫停，請由房主按播放');attach();blocked=false;errorCode=null;endedItem=null;const song=state?.queue?.[0];if(!song)return note('先點一首歌。');if(current!==song.id){current=song.id;playedItem=null;seen=null;player.loadVideoById(song.videoId);}else if(player.getPlayerState()===0){player.seekTo(0,true);player.playVideo();}else player.playVideo();};
+ authorize.onclick=start;by('start').onclick=start;
  by('full').onclick=async()=>{try{const stage=document.querySelector('.video');if(document.fullscreenElement)await document.exitFullscreen();else await stage.requestFullscreen();}catch(e){note('無法進入全螢幕：'+e.message);}};document.addEventListener('fullscreenchange',()=>by('full').textContent=document.fullscreenElement?'退出全螢幕':'全螢幕');
  by('clean').onclick=()=>{document.body.classList.add('clean');by('reveal').hidden=false;};by('reveal').onclick=()=>{document.body.classList.remove('clean');by('reveal').hidden=true;};
- const hook=setInterval(()=>{if(ready&&player&&!readyHook){readyHook=true;player.addEventListener('onError','goKtvError');player.addEventListener('onAutoplayBlocked','goKtvBlocked');player.addEventListener('onApiChange','goKtvCaptions');window.goKtvCaptions();clearInterval(hook);}},200);window.addEventListener('pagehide',()=>clearInterval(hook));vocalPanel(by('session'));
+ window.goKtvPlaybackStatus=()=>({blocked,errorCode,playedItem,endedItem,current,playerState:ready?player.getPlayerState():null});
+ vocalPanel(by('session'));
 }
