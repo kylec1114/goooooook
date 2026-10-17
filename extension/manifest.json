@@ -1,15 +1,30 @@
 {
   "manifest_version": 3,
+  "minimum_chrome_version": "116",
   "name": "goooooook Live Vocal Reduction",
-  "version": "1.0.0",
-  "description": "即時中置聲道抵消，為正在播放的 YouTube 分頁提供實驗性人聲減弱。",
-  "permissions": ["tabCapture", "offscreen"],
+  "version": "1.1.0",
+  "permissions": [
+    "activeTab",
+    "tabCapture",
+    "offscreen"
+  ],
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "goooooook 伴奏模式"
+    "default_popup": "popup.html"
   },
   "background": {
     "service_worker": "background.js"
   },
-  "icons": {}
+  "content_scripts": [
+    {
+      "matches": [
+        "https://goooooook.kylechan051114.workers.dev/*",
+        "http://localhost:3000/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
 }

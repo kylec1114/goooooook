@@ -1,0 +1,36 @@
+name: UI tests and requested D1 deployment
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/ui-tests-dispatch.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-and-dispatch:
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Add extension bridge and sync tests; request D1 deployment'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Check extension syntax and frontend synchronization mocks
+        run: |
+          set -euo pipefail
+          for file in extension/*.js; do node --check "$file"; done
+          node --test test/frontend-sync.test.cjs
+      - name: Dispatch existing D1 Setup and Deploy Web on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
+          test "$HEAD_SHA" = "$GITHUB_SHA" || { echo 'main changed; refusing to deploy an untested commit'; exit 1; }
+          gh workflow run d1-setup-deploy.yml --repo "$GH_REPO" --ref main
+          echo 'D1 workflow dispatch requested; deployment completion must be checked separately.'

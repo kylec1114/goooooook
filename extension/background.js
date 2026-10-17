@@ -1,42 +1,6 @@
 'use strict';
-
-const OFFSCREEN_URL = 'offscreen.html';
-
-async function hasOffscreenDocument() {
-  const contexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT']
-  });
-  return contexts.length > 0;
-}
-
-async function ensureOffscreenDocument() {
-  if (await hasOffscreenDocument()) return;
-
-  await chrome.offscreen.createDocument({
-    url: OFFSCREEN_URL,
-    reasons: ['USER_MEDIA'],
-    justification: '即時處理 YouTube 分頁音訊，提供實驗性中置人聲減弱。'
-  });
-}
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.target !== 'background') return false;
-
-  if (message.type === 'ENSURE_OFFSCREEN') {
-    ensureOffscreenDocument()
-      .then(() => sendResponse({ ok: true }))
-      .catch(error => sendResponse({ ok: false, error: error.message }));
-    return true;
-  }
-
-  if (message.type === 'STOP_CENTER_CANCEL') {
-    chrome.runtime.sendMessage({
-      target: 'offscreen',
-      type: 'STOP_CENTER_CANCEL'
-    }).catch(() => {});
-    sendResponse({ ok: true });
-    return false;
-  }
-
-  return false;
-});
+const origins=new Set(['https://goooooook.kylechan051114.workers.dev','http://localhost:3000']);let creating=null,busy=false;
+function allowed(u){try{return origins.has(new URL(u).origin);}catch{return false;}}
+async function off(type,data){if(!(await chrome.runtime.getContexts({contextTypes:['OFFSCREEN_DOCUMENT']})).length){if(!creating)creating=chrome.offscreen.createDocument({url:'offscreen.html',reasons:['USER_MEDIA'],justification:'User-authorized local karaoke audio processing'}).finally(()=>creating=null);await creating;}const r=await chrome.runtime.sendMessage({target:'offscreen',type,...data});if(!r?.ok)throw Error(r?.error||'Audio processor unavailable');return r;}
+async function handle(m,s){const popup=s.id===chrome.runtime.id&&!s.tab&&s.url===chrome.runtime.getURL('popup.html'),page=s.id===chrome.runtime.id&&s.tab&&s.frameId===0&&allowed(s.url)&&allowed(s.tab.url);if(!popup&&!page)throw Error('Untrusted sender');if(!['STATUS','START','STOP','SET_STRENGTH'].includes(m.type))throw Error('Unknown command');let tabId=s.tab?.id;if(popup){const [t]=await chrome.tabs.query({active:true,currentWindow:true});if(!t?.id||!allowed(t.url))throw Error('Open the goooooook TV tab first');tabId=t.id;}if(m.type==='SET_STRENGTH'&&(!Number.isInteger(m.strength)||m.strength<0||m.strength>100))throw Error('Invalid strength');if(m.type==='START'){if(!popup)throw Error('Start using the extension popup');if(busy)throw Error('Capture is starting');busy=true;try{const state=await off('STATUS',{tabId});if(state.tabId!==null&&state.tabId!==tabId)throw Error('Stop the other captured tab first');if(state.active)return state;const streamId=await chrome.tabCapture.getMediaStreamId({targetTabId:tabId});return await off('START',{tabId,streamId,strength:85});}finally{busy=false;}}return off(m.type,{tabId,...(m.type==='SET_STRENGTH'?{strength:m.strength}:{})});}
+chrome.runtime.onMessage.addListener((m,s,respond)=>{if(m?.target!=='background')return false;handle(m,s).then(respond,e=>respond({ok:false,error:e.message}));return true;});
