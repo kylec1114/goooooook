@@ -1,0 +1,19 @@
+name: Playlists and room security UI tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/playlist-*', 'test/playlist-room.test.mjs', 'cloud/stop-worker.mjs', '.github/workflows/playlist-room.yml']
+  pull_request:
+    paths: ['public/playlist-*', 'test/playlist-room.test.mjs', 'cloud/stop-worker.mjs', '.github/workflows/playlist-room.yml']
+permissions:
+  contents: read
+jobs:
+  playlists:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/playlist-room.mjs && node --check cloud/stop-worker.mjs
+      - run: node --test test/playlist-room.test.mjs test/profile-mobile.test.mjs test/search-clean.test.mjs

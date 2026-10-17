@@ -1,0 +1,4 @@
+.playlist-tools summary{cursor:pointer;font-size:18px;font-weight:600}.playlist-tools>button{margin:5px 6px 5px 0;min-height:44px}.playlist-tools [role=status]{overflow-wrap:anywhere}.room-security-note{font-size:14px;line-height:1.6;color:#dac6ed}.password-toggle{display:flex;align-items:center;gap:8px}.password-toggle input{width:auto!important;min-height:0!important;margin:0}
+@media(max-width:760px),(pointer:coarse){.playlist-tools>button{width:100%;margin:5px 0}.playlist-tools{padding:14px}#roomNav{padding-bottom:max(6px,env(safe-area-inset-bottom))}.playlist-tools input,.playlist-tools select{max-width:100%;min-width:0}}
+
+@media(max-width:760px),(pointer:coarse){body #youtube-search-panel .song-actions button{min-height:44px}body #youtube-search-panel form input{font-size:16px}}
