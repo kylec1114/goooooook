@@ -1,0 +1,19 @@
+name: Single search surface tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/youtube-search.mjs', 'public/search-clean.css', 'test/search-clean.test.mjs', '.github/workflows/search-clean.yml']
+  pull_request:
+    paths: ['public/youtube-search.mjs', 'public/search-clean.css', 'test/search-clean.test.mjs', '.github/workflows/search-clean.yml']
+permissions:
+  contents: read
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/youtube-search.mjs
+      - run: node --test test/search-clean.test.mjs test/profile-mobile.test.mjs

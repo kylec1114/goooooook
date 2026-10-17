@@ -1,0 +1,10 @@
+#search>#youtube-search-panel{margin-top:0}
+#youtube-search-panel form{display:flex;align-items:center;gap:8px;margin:0 0 12px}
+#youtube-search-panel form input{flex:1;min-width:0;margin:0}
+#youtube-search-panel [role=status]:empty{display:none}
+#youtube-search-panel .compact-song{display:flex;align-items:center;flex-wrap:nowrap;gap:12px}
+#youtube-search-panel .compact-song .info{display:grid;grid-template-columns:80px minmax(0,1fr);column-gap:12px;align-items:center;min-width:0;flex:1}
+#youtube-search-panel .info img.song-thumb{grid-column:1;grid-row:1 / span 2;display:block!important;width:80px;height:60px;object-fit:cover;border-radius:9px;margin:0}
+#youtube-search-panel .info strong,#youtube-search-panel .info small{grid-column:2;min-width:0;overflow-wrap:anywhere}
+#youtube-search-panel .song-actions{display:flex;gap:6px;flex-shrink:0}
+@media(max-width:480px){#youtube-search-panel{padding:10px}#youtube-search-panel .compact-song{gap:8px;padding:10px}#youtube-search-panel .compact-song .info{grid-template-columns:56px minmax(0,1fr);column-gap:8px}#youtube-search-panel .info img.song-thumb{width:56px;height:42px}#youtube-search-panel .info strong{font-size:16px}#youtube-search-panel .song-actions{flex-direction:column;gap:5px}#youtube-search-panel .song-actions button{min-height:36px;padding:6px 10px}}
