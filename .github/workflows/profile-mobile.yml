@@ -1,0 +1,19 @@
+name: Profile and compact mobile UI tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/guest-profile.mjs', 'public/profile-ui.mjs', 'public/profile-mobile.css', 'public/youtube-search.mjs', 'cloud/stop-worker.mjs', 'test/profile-mobile.test.mjs', '.github/workflows/profile-mobile.yml']
+  pull_request:
+    paths: ['public/guest-profile.mjs', 'public/profile-ui.mjs', 'public/profile-mobile.css', 'public/youtube-search.mjs', 'cloud/stop-worker.mjs', 'test/profile-mobile.test.mjs', '.github/workflows/profile-mobile.yml']
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/profile-ui.mjs && node --check public/youtube-search.mjs && node --check cloud/stop-worker.mjs
+      - run: node --test test/profile-mobile.test.mjs test/frontend-sync.test.cjs test/room-autoplay.test.cjs test/stop-control.test.mjs test/tv-stage.test.mjs test/youtube-controls.test.cjs
