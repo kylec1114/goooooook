@@ -16,3 +16,11 @@ CREATE INDEX IF NOT EXISTS songs_room ON songs(room_code);
 CREATE INDEX IF NOT EXISTS queue_room_position ON queue(room_code,position,created_at,id);
 CREATE INDEX IF NOT EXISTS ownership_room ON queue_ownership(room_code);
 CREATE INDEX IF NOT EXISTS links_room ON player_links(room_code);
+CREATE TABLE IF NOT EXISTS ktv_sync (
+ room_code TEXT PRIMARY KEY,
+ command_revision INTEGER NOT NULL DEFAULT 0,
+ applied_revision INTEGER NOT NULL DEFAULT 0,
+ player_hash TEXT,
+ reported_at INTEGER NOT NULL DEFAULT 0,
+ observed_json TEXT
+);

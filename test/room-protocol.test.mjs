@@ -1,0 +1,17 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {movePending,validReport,matchesTarget} from '../public/room-protocol.mjs';
+const q=[{id:'a',videoId:'abcdefghijk'},{id:'b'},{id:'c'}],s={queue:[q[0]],volume:60,paused:false,restartRevision:2};const r={itemId:'a',videoId:'abcdefghijk',playerState:1,currentTime:3,duration:100,volume:60,appliedRevision:2,restartRevision:2,blocked:false,errorCode:null};
+test('pending move never changes active item',()=>assert.deepEqual(movePending(q,'c',1),['a','c','b']));
+test('active item cannot move',()=>assert.throws(()=>movePending(q,'a',1)));
+test('pending item cannot replace active item',()=>assert.throws(()=>movePending(q,'c',0)));
+test('invalid move rejected',()=>assert.throws(()=>movePending(q,'c',3)));
+test('valid report accepted',()=>assert.equal(validReport(r),true));
+test('missing fields rejected',()=>assert.equal(validReport({}),false));
+test('invalid time rejected',()=>assert.equal(validReport({...r,currentTime:Infinity}),false));
+test('matching playing state acknowledges',()=>assert.equal(matchesTarget(r,s),true));
+test('buffering does not acknowledge play',()=>assert.equal(matchesTarget({...r,playerState:3},s),false));
+test('blocked autoplay does not acknowledge',()=>assert.equal(matchesTarget({...r,blocked:true},s),false));
+test('error does not acknowledge',()=>assert.equal(matchesTarget({...r,errorCode:153},s),false));
+test('wrong song does not acknowledge',()=>assert.equal(matchesTarget({...r,itemId:'b'},s),false));
+test('wrong volume does not acknowledge',()=>assert.equal(matchesTarget({...r,volume:10},s),false));
+test('unapplied restart does not acknowledge',()=>assert.equal(matchesTarget({...r,restartRevision:1},s),false));
+test('pause must be actually paused',()=>{assert.equal(matchesTarget(r,{...s,paused:true}),false);assert.equal(matchesTarget({...r,playerState:2},{...s,paused:true}),true);});
