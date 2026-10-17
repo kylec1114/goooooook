@@ -3,7 +3,16 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-android.yml', 'public/android-release.mjs', 'public/android-download.mjs', 'public/download/**', 'test/android-download.test.mjs']
+    paths:
+      - '.github/workflows/publish-android.yml'
+      - 'android/**'
+      - 'capacitor.config.*'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'public/android-release.mjs'
+      - 'public/android-download.mjs'
+      - 'public/download/**'
+      - 'test/android-download.test.mjs'
 permissions:
   contents: read
 concurrency:
@@ -21,7 +30,7 @@ jobs:
       - run: node --test test/android-download.test.mjs
   build-and-publish:
     needs: checks
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Set up public Android test APK publishing and website downloads')
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
@@ -40,6 +49,7 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install dependencies without lifecycle scripts
         run: |
+          set -euo pipefail
           npm install --ignore-scripts --no-audit --no-fund
           npm install --no-save --ignore-scripts --no-audit --no-fund typescript@5
       - name: Restore optional stable debug signing key
@@ -60,11 +70,13 @@ jobs:
       - name: Prepare and build Android test APK
         run: |
           set -euo pipefail
-          if [ ! -d android ]; then npx cap add android; fi
-          npx cap sync android
-          chmod +x android/gradlew
-          cd android
-          ./gradlew assembleDebug --stacktrace
+          (
+            if [ ! -d android ]; then npx cap add android; fi
+            npx cap sync android
+            chmod +x android/gradlew
+            cd android
+            ./gradlew assembleDebug --stacktrace --console=plain
+          ) 2>&1 | tee "$RUNNER_TEMP/android-build.log"
       - name: Verify signed APK and compute checksum
         run: |
           set -euo pipefail
@@ -77,6 +89,7 @@ jobs:
           cp "$APK" dist-apk/goooooook.apk
           cd dist-apk
           sha256sum goooooook.apk > goooooook.apk.sha256
+          sha256sum --check goooooook.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: goooooook-android-test
@@ -97,6 +110,14 @@ jobs:
           gh api "repos/$GH_REPO/releases/tags/$TAG" --jq '[.assets[] | select(.state=="uploaded" and .size>0) | .name] | (index("goooooook.apk")!=null and index("goooooook.apk.sha256")!=null)' | grep -qx true
           gh release edit "$TAG" --draft=false --prerelease
           gh release view "$TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-diagnostics
+          path: ${{ runner.temp }}/android-build.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Remove signing key from runner
         if: always()
         run: rm -f "$HOME/.android/debug.keystore"
