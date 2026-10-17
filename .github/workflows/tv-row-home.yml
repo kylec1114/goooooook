@@ -1,0 +1,19 @@
+name: Single-row TV and Home APK tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/tv-compact.css', 'public/settings-library.mjs', 'test/tv-row-home.test.mjs', '.github/workflows/tv-row-home.yml']
+  pull_request:
+    paths: ['public/tv-compact.css', 'public/settings-library.mjs', 'test/tv-row-home.test.mjs', '.github/workflows/tv-row-home.yml']
+permissions:
+  contents: read
+jobs:
+  layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/settings-library.mjs
+      - run: node --test test/tv-row-home.test.mjs test/tv-topbar.test.mjs test/settings-library.test.mjs test/android-download.test.mjs

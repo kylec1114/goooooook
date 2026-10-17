@@ -1,12 +1,16 @@
 body.desktop-tv-presentation #tv-stage.compact-tv{display:block!important;height:100dvh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
 #tv-stage.compact-tv>.tv-entry,#tv-stage.compact-tv>.card{display:none!important}
-#tv-stage.compact-tv .tv-topbar{position:static!important;background:#201529}
-#tv-stage.compact-tv .tv-room-header{display:flex;padding:5px 12px;gap:12px;min-height:72px}
-#tv-stage.compact-tv .tv-room-header>div:first-child{flex:1;min-width:0}#tv-stage.compact-tv .tv-room-header h2{font-size:20px;margin:0}#tv-stage.compact-tv .tv-room-header p{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:4px 0}
-#tv-stage.compact-tv .tv-invite img{width:64px;height:64px;padding:2px}#tv-stage.compact-tv .tv-invite small{font-size:11px;max-width:90px}#tv-stage.compact-tv .tv-room-header>button{font-size:13px;padding:8px;min-height:44px}
+#tv-stage.compact-tv .tv-topbar{position:static!important;display:flex;flex-wrap:nowrap;align-items:center;gap:10px;padding:6px 12px;background:#201529}
+#tv-stage.compact-tv .tv-topbar>.tv-room-header{display:contents!important}
+#tv-stage.compact-tv .tv-room-header>div:first-child{order:0;flex:1 1 280px;min-width:140px;max-width:440px}
+#tv-stage.compact-tv .tv-room-header h2{font-size:20px;margin:0}#tv-stage.compact-tv .tv-room-header p{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:4px 0}
+#tv-stage.compact-tv .tv-invite{order:4;flex:0 0 auto;gap:8px;max-width:180px}#tv-stage.compact-tv .tv-invite img{width:96px;height:96px;padding:3px;flex-shrink:0}#tv-stage.compact-tv .tv-invite small{font-size:11px;max-width:64px}
+#tv-stage.compact-tv .tv-room-header>button{order:1;font-size:13px;padding:8px;min-height:44px}
 body.desktop-tv-presentation #tv-stage.compact-tv .video{position:relative!important;inset:auto!important;display:block!important;width:100%;height:calc(100dvh - var(--tv-header-height,128px));min-height:200px;aspect-ratio:auto;overflow:visible}
 #tv-stage.compact-tv .tv-room-footer,#tv-stage.compact-tv .tv-room-message,#tv-stage.compact-tv .tv-display-status{position:static!important;margin:0}
-#tv-stage.compact-tv .tv-room-footer{padding:5px 10px;gap:7px;border-top:1px solid #ffffff12}#tv-stage.compact-tv .tv-room-footer::before{content:none}#tv-stage.compact-tv .tv-room-footer button{font-size:14px;padding:7px 12px;min-height:40px}
-#tv-stage.compact-tv.tv-immersive .tv-room-header{display:none!important}#tv-stage.compact-tv.tv-await-gesture .tv-room-header{display:flex!important}
+#tv-stage.compact-tv .tv-room-footer{order:1;flex:2 1 640px;min-width:180px;max-width:100%;padding:4px 0;gap:7px;border:0;flex-wrap:nowrap!important;justify-content:flex-start;overflow-x:auto}
+#tv-stage.compact-tv .tv-room-footer::before{content:none}#tv-stage.compact-tv .tv-room-footer button{flex-shrink:0;white-space:nowrap;font-size:14px;padding:7px 10px;min-height:40px}
+#tv-stage.compact-tv .tv-room-message{order:2;flex:0 1 100px;min-width:0;font-size:12px;padding:0;overflow-wrap:anywhere}#tv-stage.compact-tv .tv-display-status{order:3;flex:0 1 140px;min-width:0;font-size:12px;padding:0;overflow-wrap:anywhere}
+#tv-stage.compact-tv.tv-immersive .tv-topbar>.tv-room-header{display:none!important}#tv-stage.compact-tv.tv-await-gesture .tv-topbar>.tv-room-header{display:contents!important}
 body.desktop-tv-presentation #volumeLabel{display:none!important}
-.tv-display-status{color:#ffdfa6;padding:6px 10px;font-size:13px;overflow-wrap:anywhere}.tv-display-status:empty{display:none}.tv-display-controls>button{min-height:44px;margin:5px}.tv-display-controls summary{cursor:pointer}
+.tv-display-status{color:#ffdfa6;overflow-wrap:anywhere}.tv-display-status:empty{display:none}.tv-display-controls>button{min-height:44px;margin:5px}.tv-display-controls summary{cursor:pointer}

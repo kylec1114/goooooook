@@ -8,7 +8,7 @@ function mount(){const settings=by('settings'),library=by('library');if(!by('roo
  const profile=make('p'),edit=make('button','修改名稱／emoji');edit.type='button';edit.onclick=()=>document.querySelector('.profile-pill')?.click();personal.append(profile,edit);
  room.append(make('p','房主可更換訪客密碼；訪客需使用房號及密碼登入。'));
  const status=make('a','版本與連線狀態');status.href='/status.html';status.className='button';connection.append(status);
- const download=make('a','Android 測試版下載');download.href='/download/';download.className='button';connection.append(download);
+ const home=by('home');if(home&&!by('home-apk-download')){const download=make('a','Android 測試版下載');download.id='home-apk-download';download.href='/download/';download.className='button';home.append(download);}
  const stash=make('div');stash.hidden=true;stash.id='legacy-library-fields';tools.append(stash);
  settings.append(grid);
  function reconcile(){
