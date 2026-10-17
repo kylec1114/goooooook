@@ -1,0 +1,19 @@
+name: Settings and audio preference tests
+on:
+  push:
+    branches: [main]
+    paths: ['public/settings-library.*', 'public/youtube-search.mjs', 'cloud/stop-worker.mjs', 'test/settings-library.test.mjs', 'test/profile-mobile.test.mjs', '.github/workflows/settings-library.yml']
+  pull_request:
+    paths: ['public/settings-library.*', 'public/youtube-search.mjs', 'cloud/stop-worker.mjs', 'test/settings-library.test.mjs', 'test/profile-mobile.test.mjs', '.github/workflows/settings-library.yml']
+permissions:
+  contents: read
+jobs:
+  layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check public/settings-library.mjs && node --check public/youtube-search.mjs
+      - run: node --test test/settings-library.test.mjs test/profile-mobile.test.mjs test/search-clean.test.mjs test/playlist-room.test.mjs
