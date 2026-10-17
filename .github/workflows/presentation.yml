@@ -1,0 +1,19 @@
+name: TV presentation control tests
+on:
+  push:
+    branches: [main]
+    paths: ['cloud/presentation-service.mjs', 'cloud/stop-worker.mjs', 'cloud/migration.sql', 'public/tv-compact.*', 'public/tv-display-policy.mjs', 'test/presentation.test.mjs', '.github/workflows/presentation.yml']
+  pull_request:
+    paths: ['cloud/presentation-service.mjs', 'cloud/stop-worker.mjs', 'cloud/migration.sql', 'public/tv-compact.*', 'public/tv-display-policy.mjs', 'test/presentation.test.mjs', '.github/workflows/presentation.yml']
+permissions:
+  contents: read
+jobs:
+  presentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check cloud/presentation-service.mjs && node --check public/tv-compact.mjs
+      - run: node --test test/presentation.test.mjs test/desktop-tv.test.mjs test/tv-stage.test.mjs test/room-autoplay.test.cjs test/stop-control.test.mjs

@@ -24,3 +24,12 @@ CREATE TABLE IF NOT EXISTS ktv_sync (
  reported_at INTEGER NOT NULL DEFAULT 0,
  observed_json TEXT
 );
+CREATE TABLE IF NOT EXISTS ktv_display (
+ room_code TEXT PRIMARY KEY REFERENCES rooms(room_code) ON DELETE CASCADE,
+ mode TEXT NOT NULL DEFAULT 'info',
+ revision INTEGER NOT NULL DEFAULT 0,
+ fullscreen_request TEXT NOT NULL DEFAULT 'none',
+ observed_json TEXT,
+ reported_at INTEGER NOT NULL DEFAULT 0,
+ player_hash TEXT
+);

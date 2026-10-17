@@ -1,0 +1,10 @@
+body.desktop-tv-presentation #tv-stage.compact-tv{display:block!important;height:100dvh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
+#tv-stage.compact-tv>.tv-entry,#tv-stage.compact-tv>.card{display:none!important}
+#tv-stage.compact-tv .tv-room-header{display:flex;padding:6px 12px;gap:12px;min-height:72px}
+#tv-stage.compact-tv .tv-room-header>div:first-child{flex:1;min-width:0}#tv-stage.compact-tv .tv-room-header h2{font-size:20px;margin:0}#tv-stage.compact-tv .tv-room-header p{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:4px 0}
+#tv-stage.compact-tv .tv-invite img{width:64px;height:64px;padding:2px}#tv-stage.compact-tv .tv-invite small{font-size:11px;max-width:90px}#tv-stage.compact-tv .tv-room-header>button{font-size:13px;padding:8px;min-height:44px}
+body.desktop-tv-presentation #tv-stage.compact-tv .video{position:relative!important;inset:auto!important;display:block!important;width:100%;height:calc(100dvh - var(--tv-header-height,84px));min-height:200px;aspect-ratio:auto;overflow:visible}
+#tv-stage.compact-tv .tv-room-footer,#tv-stage.compact-tv .tv-room-message,#tv-stage.compact-tv>.tv-display-status{position:static!important;margin:0}
+#tv-stage.compact-tv .tv-room-footer{padding:10px;gap:8px}#tv-stage.compact-tv .tv-room-footer::before{content:'TV 控制列 · 可捲回影片';font-size:12px;align-self:center;color:#bca9ca}#tv-stage.compact-tv .tv-room-footer button{font-size:15px;padding:8px 12px}
+#tv-stage.compact-tv.tv-immersive .tv-room-header{display:none!important}#tv-stage.compact-tv.tv-await-gesture .tv-room-header{display:flex!important}
+.tv-display-status{color:#ffdfa6;padding:8px;font-size:13px;overflow-wrap:anywhere}.tv-display-status:empty{display:none}.tv-display-controls>button{min-height:44px;margin:5px}.tv-display-controls summary{cursor:pointer}
