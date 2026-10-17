@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   test-and-dispatch:
-    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Add extension bridge and sync tests; request D1 deployment'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Enable no-key YouTube keyword search and request deployment')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -19,18 +19,19 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Check extension syntax and frontend synchronization mocks
+      - name: Check syntax and unified search tests
         run: |
           set -euo pipefail
-          for file in extension/*.js; do node --check "$file"; done
+          for file in extension/*.js cloud/*.mjs public/*.mjs; do node --check "$file"; done
           node --test test/frontend-sync.test.cjs
-      - name: Dispatch existing D1 Setup and Deploy Web on main
+          node cloud/music-install.test.mjs
+      - name: Dispatch D1 Setup and Deploy Web on tested main
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           HEAD_SHA=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
-          test "$HEAD_SHA" = "$GITHUB_SHA" || { echo 'main changed; refusing to deploy an untested commit'; exit 1; }
+          test "$HEAD_SHA" = "$GITHUB_SHA" || { echo 'main changed; refusing deployment'; exit 1; }
           gh workflow run d1-setup-deploy.yml --repo "$GH_REPO" --ref main
-          echo 'D1 workflow dispatch requested; deployment completion must be checked separately.'
+          echo 'D1 deployment requested. Verify the deployment run separately.'
