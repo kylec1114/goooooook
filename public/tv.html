@@ -1,22 +1,93 @@
 <!doctype html>
-<html lang="zh-HK"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="strict-origin-when-cross-origin"><title>goooooook TV</title><style>*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;font:18px system-ui}#stage{position:fixed;inset:0}#player,#stage iframe{width:100%;height:100%;border:0}#panel{position:fixed;bottom:0;left:0;right:0;padding:18px;background:linear-gradient(transparent,#000e);z-index:2}body.clean #panel{display:none}button{font:inherit;padding:12px;margin:5px;background:#222;color:#fff;border:1px solid #888;border-radius:10px}#reveal{position:fixed;right:8px;top:8px;z-index:3}#list{max-height:15vh;overflow:auto;white-space:pre-wrap}#status{color:#ffd29b}small{display:block;font-size:13px;color:#ddd}#attenuation{width:220px}</style></head><body>
-<div id="stage"><div id="player"></div></div><button id="reveal">控制</button><div id="panel"><div id="room"></div><div id="now">正在連線</div><p id="status" role="status"></p><button id="start">開始／繼續</button><button id="skip">下一首</button><button id="fullscreen">全螢幕</button><label for="attenuation">整體音量減弱 <output id="attenuationValue">0%</output></label><input id="attenuation" type="range" min="0" max="100" value="0"><small>同時降低人聲及伴奏，並非人聲分離。使用 YouTube 原生 CC；有字幕嘅影片會預設開啟並設為最大字體。</small><div id="list"></div></div>
-<script>
-'use strict';
-const el=id=>document.getElementById(id),params=new URLSearchParams(location.search),source=params.get('token'),room=params.get('room');history.replaceState(null,'',location.pathname);
-let token=source,player,ready=false,leader=false,current=null,loaded=null,seen=null,stopped=false,busy=false,restart=-1,hideTimer,baseVolume=100;
-let resolveYT;const ytReady=new Promise(r=>resolveYT=r);window.onYouTubeIframeAPIReady=()=>resolveYT();
-function show(){document.body.classList.remove('clean');clearTimeout(hideTimer);hideTimer=setTimeout(()=>{if(leader&&ready&&player.getPlayerState()===1)document.body.classList.add('clean');},5000);}
-function note(t){el('status').textContent=t;show();}
-function enlargeCaptions(){try{if(player.getOption&&player.getOption('captions','fontSize')!==undefined){player.setOption('captions','fontSize',3);}}catch(e){}}
-function applyVolume(){if(ready&&leader)player.setVolume(Math.round(baseVolume*(1-Number(el('attenuation').value)/100)));}
-el('attenuation').oninput=()=>{el('attenuationValue').textContent=el('attenuation').value+'%';applyVolume();show();};
-async function api(path,body){const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+token,...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body)});const d=await r.json();if(!r.ok){if(r.status===401||r.status===410){stopped=true;leader=false;if(ready)player.stopVideo();}throw Error(d.error||'連線失敗');}return d;}
-function apply(d){leader=d.leader;el('start').disabled=!leader;el('skip').disabled=!leader;el('attenuation').disabled=!leader;if(!leader){if(ready)player.pauseVideo();note('另一部電視是主播放端；關閉後約20秒可接管。');return;}if(el('status').textContent.startsWith('另一部'))el('status').textContent='';current=d.queue[0]||null;el('room').textContent='房間 '+room;el('now').textContent=current?current.title+' — '+current.singer:'等待點歌';el('list').textContent=d.queue.slice(1).map((s,i)=>(i+1)+'. '+s.title+' — '+s.singer).join('\n');if(!ready)return;baseVolume=Number.isFinite(d.volume)?Math.max(0,Math.min(100,d.volume)):100;applyVolume();if(!current){if(loaded)player.stopVideo();loaded=null;return;}if(loaded!==current.id){loaded=current.id;seen=null;player.loadVideoById(current.videoId);}if(restart!==d.restartRevision){if(restart>=0&&d.restartItem===current.id)player.seekTo(0,true);restart=d.restartRevision;}if(d.paused){if(player.getPlayerState()!==2)player.pauseVideo();}else if(player.getPlayerState()===2)player.playVideo();}
-async function heartbeat(){if(stopped)return;try{apply(await api('/api/player/heartbeat',{playing:leader&&ready&&player.getPlayerState()===1}));}catch(e){leader=false;if(ready)player.pauseVideo();note(e.message);}finally{if(!stopped)setTimeout(heartbeat,5000);}}
-async function next(){if(!leader||!current||busy)return;busy=true;try{await api('/api/queue/next',{currentItemId:current.id});apply(await api('/api/player/heartbeat',{playing:false}));}catch(e){note(e.message);}finally{busy=false;}}
-el('skip').onclick=next;el('start').onclick=()=>{if(leader&&ready){player.playVideo();show();}};
-el('reveal').onclick=()=>{if(document.body.classList.contains('clean'))show();else document.body.classList.add('clean');};
-el('fullscreen').onclick=async()=>{try{const root=document.documentElement;if(document.fullscreenElement)await document.exitFullscreen();else if(root.requestFullscreen)await root.requestFullscreen();else if(root.webkitRequestFullscreen)root.webkitRequestFullscreen();else note('此瀏覽器不支援真正全屏');}catch(e){note(e.message);}show();};document.addEventListener('mousemove',show);document.addEventListener('keydown',e=>{show();if(e.key.toLowerCase()==='f'&&!e.repeat)el('fullscreen').click();});
-(async()=>{try{if(!source||!room)throw Error('請由房主手機取得電視連結');const d=await api('/api/player',{});if(d.roomCode!==room)throw Error('房間不符');token=d.roomToken;await ytReady;player=new YT.Player('player',{width:'100%',height:'100%',playerVars:{origin:location.origin,playsinline:1,fs:1,cc_load_policy:1,cc_lang_pref:'zh-HK'},events:{onReady:()=>{ready=true;heartbeat();},onApiChange:enlargeCaptions,onStateChange:e=>{if(e.data===1){if(!leader){player.pauseVideo();return;}seen=loaded;enlargeCaptions();show();}if(e.data===0&&leader&&current&&seen===current.id){seen=null;next();}},onError:e=>note('YouTube 錯誤 '+e.data+'，可手動下一首'),onAutoplayBlocked:()=>note('請按「開始／繼續」播放')}});}catch(e){note(e.message);}})();
-</script><script src="https://www.youtube.com/iframe_api"></script></body></html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>goooooook TV</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#0b0710;color:#fff;font:16px system-ui,-apple-system,"Segoe UI",sans-serif}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 24px;background:#150d20;border-bottom:1px solid #2c1f3a}
+    h1{margin:0;font-size:22px}
+    .badge{font-size:12px;padding:6px 10px;border-radius:999px;background:#d82870}
+    main{padding:24px}
+    .player{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:16px;overflow:hidden}
+    iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+    .panel{margin-top:20px;background:#150d20;border:1px solid #2c1f3a;border-radius:16px;padding:20px}
+    h2{margin:0 0 12px;font-size:18px}
+    label{display:block;margin:14px 0 6px;color:#d7c7e6}
+    input[type=range]{width:100%}
+    .hint{margin-top:14px;color:#b8a9c9;line-height:1.55}
+    .warning{margin-top:14px;padding:12px;border-radius:12px;background:#3a2233;color:#ffd7e6}
+    .buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    button{padding:12px 18px;border:0;border-radius:12px;background:#d82870;color:#fff;font-weight:800;cursor:pointer}
+    button.secondary{background:#3b2b4d}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>goooooook TV</h1>
+    <span class="badge">伴奏模式</span>
+  </header>
+
+  <main>
+    <div class="player">
+      <iframe id="youtube" src="https://www.youtube.com/embed/videoseries?list=PLFgquLnL59alCl_2TQvOiD5Vgm1hCaGSI" title="goooooook TV player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+    </div>
+
+    <section class="panel">
+      <h2>電視音量</h2>
+      <label for="tvVolume">整體音量衰減</label>
+      <input id="tvVolume" type="range" min="0" max="100" value="100">
+
+      <div class="warning">
+        <strong>即時人聲減弱需要 Chrome 擴充功能。</strong><br>
+        喺電腦版 Chrome 安裝 <code>goooooook Live Vocal Reduction</code> 擴充功能，
+        打開 YouTube 分頁後按擴充功能圖示，再揀「啟動即時人聲減弱」。
+      </div>
+
+      <div class="hint">
+        呢個模式用中置聲道抵消做實驗性人聲減弱。佢可能會同時減弱部分中置樂器，
+        唔保證完全消除人聲；建議配合 YouTube 原生 CC 字幕使用。
+      </div>
+
+      <div class="buttons">
+        <button id="enableCaptions">顯示 YouTube CC</button>
+        <button id="reloadPlayer" class="secondary">重新載入播放器</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const youtube = document.getElementById('youtube');
+    const tvVolume = document.getElementById('tvVolume');
+
+    document.getElementById('reloadPlayer').onclick = () => {
+      const src = youtube.src;
+      youtube.src = '';
+      setTimeout(() => { youtube.src = src; }, 50);
+    };
+
+    document.getElementById('enableCaptions').onclick = () => {
+      try {
+        youtube.contentWindow.postMessage(
+          JSON.stringify({ event: 'command', func: 'setOption', args: ['captions', 'track', ''] }),
+          '*'
+        );
+      } catch (error) {
+        console.warn('Unable to control captions:', error);
+      }
+    };
+
+    tvVolume.addEventListener('input', () => {
+      const value = Number(tvVolume.value) / 100;
+      localStorage.setItem('goooooook_tv_volume', String(value));
+    });
+
+    const savedVolume = localStorage.getItem('goooooook_tv_volume');
+    if (savedVolume !== null) {
+      tvVolume.value = Math.round(Number(savedVolume) * 100);
+    }
+  </script>
+</body>
+</html>

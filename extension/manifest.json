@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "goooooook Live Vocal Reduction",
+  "version": "1.0.0",
+  "description": "即時中置聲道抵消，為正在播放的 YouTube 分頁提供實驗性人聲減弱。",
+  "permissions": ["tabCapture", "offscreen"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "goooooook 伴奏模式"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {}
+}

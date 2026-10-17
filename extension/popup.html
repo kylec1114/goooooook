@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8">
+  <title>goooooook 伴奏模式</title>
+  <style>
+    body{width:320px;font:14px system-ui;background:#150d20;color:#fff;padding:16px}
+    h3{margin:0 0 12px}
+    button,input{width:100%;padding:10px;margin:8px 0;border-radius:10px;border:0;font:inherit}
+    button{background:#d82870;color:#fff;font-weight:800;cursor:pointer}
+    button.secondary{background:#3b2b4d}
+    input[type=range]{padding:0}
+    small{color:#b8a9c9;line-height:1.45;display:block;margin-top:10px}
+    #status{min-height:42px;color:#ffd49b}
+  </style>
+</head>
+<body>
+  <h3>goooooook 伴奏模式</h3>
+  <button id="start">🎤 啟動即時人聲減弱</button>
+  <button id="stop" class="secondary">⏹ 停止並還原</button>
+  <label for="strength">人聲減弱強度</label>
+  <input id="strength" type="range" min="0" max="100" value="85">
+  <p id="status"></p>
+  <small>只處理目前分頁正在播放的音訊；不會下載、儲存或上傳音訊。中置抵消會同時減弱部分中置樂器，不保證完全消除人聲。</small>
+  <script src="popup.js"></script>
+</body>
+</html>
