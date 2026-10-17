@@ -1,3 +1,2 @@
-# Cloudflare Workers static assets: new homepage.
-# Deploy the assets before verifying this redirect.
+# Cloudflare Workers static assets: Studio homepage.
 / /studio.html 302
